@@ -555,6 +555,8 @@ class NiasController extends Controller
         @unlink($tmpCsvBaru);
         @unlink($tmpCsvUpdate);
 
+        $keterangan = (string) $request->input('keterangan', '-');
+
         // ── Kirim Email ────────────────────────────────────────────
         try {
             Mail::to(config('mail.nias_recipient', 'it.possijatim@gmail.com'))
@@ -563,7 +565,7 @@ class NiasController extends Controller
                 emailPelatih: $user->email ?? '-',
                 jumlahBaru:   $newRecords->count(),
                                     jumlahUpdate: $updateRecords->count(),
-                                    keterangan:   $request->input('keterangan', ''),
+                                    keterangan:   $keterangan,
                                     zipPath:      $tmpZip,
                                     zipFilename:  "{$baseFilename}.zip",
             ));
