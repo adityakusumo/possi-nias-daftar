@@ -101,7 +101,7 @@
 </div>
 
 {{-- ══════════════════════════════════════
-     2. KLUB (auto dari akun pelatih)
+     2. KLUB (Auto/Pilih sesuai Role)
 ══════════════════════════════════════ --}}
 <div class="card section-card mb-4">
     <div class="card-header py-2 px-3">
@@ -111,14 +111,31 @@
     </div>
     <div class="card-body row g-3">
         <div class="col-md-9">
-            <label class="form-label">Nama Klub</label>
-            {{-- Tampilkan sebagai text, nilai dari akun pelatih --}}
-            <input type="text" class="form-control bg-light fw-semibold"
-                   value="{{ $userClub }}" readonly>
-            <div class="form-text small">
-                <i class="bi bi-info-circle me-1 text-info"></i>
-                Klub otomatis sesuai akun pelatih yang login.
-            </div>
+            <label class="form-label fw-bold">Nama Klub</label>
+
+            @if(Auth::user()->role === 'admin')
+                {{-- Tampilan Dropdown untuk Admin: Bisa pilih semua klub --}}
+                <select name="NAMACLUB" id="NAMACLUB" class="form-select select2" required>
+                    <option value="">-- Pilih Klub --</option>
+                    @foreach($allClubs as $club)
+                        <option value="{{ $club }}" {{ (old('NAMACLUB') == $club) ? 'selected' : '' }}>
+                            {{ $club }}
+                        </option>
+                    @endforeach
+                </select>
+                <div class="form-text small">
+                    <i class="bi bi-shield-check me-1 text-primary"></i>
+                    Anda login sebagai Admin. Anda dapat mendaftarkan atlet untuk klub mana pun.
+                </div>
+            @else
+                {{-- Tampilan untuk User Regular: Terkunci ke klub sendiri --}}
+                <input type="text" name="NAMACLUB" class="form-control bg-light fw-semibold"
+                       value="{{ $userClub }}" readonly>
+                <div class="form-text small">
+                    <i class="bi bi-info-circle me-1 text-info"></i>
+                    Klub otomatis sesuai akun pelatih yang login.
+                </div>
+            @endif
         </div>
     </div>
 </div>
@@ -274,7 +291,7 @@
         </div>
         <div class="col-sm-4">
             <span class="text-secondary">Masa Berlaku s/d:</span>
-            <strong class="ms-1 text-success">{{ now()->addYears(2)->format('d/m/Y') }}</strong>
+            <strong class="ms-1 text-success">{{ now()->day(28)->addYears(2)->format('d/m/Y') }}</strong>
         </div>
     </div>
 </div>
