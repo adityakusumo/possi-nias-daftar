@@ -6,16 +6,16 @@
     {{-- SECTION 1: DATA BELUM DIKIRIM --}}
     <div class="card page-card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <h5 class="mb-0"><i class="bi bi-table me-2"></i>List Nama Atlet Daftar Nias Baru/Update</h5>
+            <h5 class="mb-0"><i class="bi bi-table me-2"></i>Pendaftaran Nias Baru/Update</h5>
             <div class="d-flex gap-2">
-                <a href="{{ route('nias.existing') }}" class="btn btn-secondary btn-sm fw-semibold shadow-sm">
-                    <i class="bi bi-people me-1"></i>Data Atlet Existing
+                <a href="{{ route('nias.create') }}" class="btn btn-warning btn-sm fw-semibold shadow-sm">
+                    <i class="bi bi-person-plus me-1"></i>Daftar NIAS Baru
                 </a>
                 <a href="{{ route('nias.update-data') }}" class="btn btn-primary btn-sm fw-semibold shadow-sm">
                     <i class="bi bi-arrow-repeat me-1"></i>Update NIAS
                 </a>
-                <a href="{{ route('nias.create') }}" class="btn btn-warning btn-sm fw-semibold shadow-sm">
-                    <i class="bi bi-person-plus me-1"></i>Daftar Baru
+                <a href="{{ route('nias.existing') }}" class="btn btn-secondary btn-sm fw-semibold shadow-sm">
+                    <i class="bi bi-people me-1"></i>NIAS Jatim yang sudah terdaftar
                 </a>
             </div>
         </div>
