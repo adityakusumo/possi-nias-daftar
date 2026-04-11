@@ -57,6 +57,7 @@ Data yang disubmit akan masuk ke daftar atlet dengan keterangan <strong>UPDATE /
             data-gender="{{ $en->GENDER }}"
             data-tptlahir="{{ $en->TPTLAHIR }}"
             data-tgllahir="{{ $en->TGLLAHIR ? \Carbon\Carbon::parse($en->TGLLAHIR)->format('Y-m-d') : '' }}"
+            data-namaclub="{{ $en->NAMACLUB }}"
             {{ old('NONIAS') == $en->NONIAS ? 'selected' : '' }}>
             {{ $en->NONIAS }} — {{ $en->NAMA }}
         </option>
@@ -70,10 +71,20 @@ Data yang disubmit akan masuk ke daftar atlet dengan keterangan <strong>UPDATE /
 <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
 <select name="NAMA" id="NAMA" class="form-select select2-nama" required>
     <option value="">— Pilih atau ketik nama —</option>
+    @foreach($existingNias->unique('NAMA') as $en)
+        <option value="{{ $en->NAMA }}"
+            data-namaclub="{{ $en->NAMACLUB }}"
+            {{ old('NAMA') == $en->NAMA ? 'selected' : '' }}>
+            {{ $en->NAMA }}
+        </option>
+    @endforeach
+    {{-- Nama dari existingNames yang tidak ada di existingNias --}}
     @foreach($existingNames as $nm)
-        <option value="{{ $nm }}" {{ old('NAMA') == $nm ? 'selected' : '' }}>
+        @if(!$existingNias->pluck('NAMA')->contains($nm))
+        <option value="{{ $nm }}" data-namaclub="" {{ old('NAMA') == $nm ? 'selected' : '' }}>
             {{ $nm }}
         </option>
+        @endif
     @endforeach
     {{-- Jika old('NAMA') tidak ada di list (nama baru/manual), tetap tampil --}}
     @if(old('NAMA') && !in_array(old('NAMA'), $existingNames))
@@ -230,16 +241,63 @@ $(function () {
     // Inisialisasi Select2
     $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
 
-    // ── Inisialisasi Select2 untuk NONIAS (dengan search) ────────
-    $('.select2-nonias').select2({
-        theme: 'bootstrap-5',
-        width: '100%',
-        placeholder: '— Pilih No NIAS —',
-        allowClear: true,
-    });
+    // Club user yang sedang login (untuk filter)
+    const userClub = '{{ $userClub }}';
+
+    // ── Fungsi matcher: filter option berdasarkan data-namaclub ──
+    function matcherByClub(params, data) {
+        // Selalu tampilkan placeholder
+        if (!data.id) return data;
+        // Jika tidak ada filter (semua club) → tampilkan semua
+        if (!data.element) return data;
+        const club = $(data.element).data('namaclub') || '';
+        // Cocokkan club
+        if (club !== userClub) return null;
+        // Filter teks pencarian
+        if (params.term && data.text.toUpperCase().indexOf(params.term.toUpperCase()) === -1) return null;
+        return data;
+    }
+
+    // ── Inisialisasi Select2 NONIAS ───────────────────────────────
+    function initNoniasSelect2(filterByClub) {
+        $('#NONIAS').select2('destroy');
+        const opts = {
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: '— Pilih No NIAS —',
+            allowClear: true,
+        };
+        if (filterByClub) opts.matcher = matcherByClub;
+        $('#NONIAS').select2(opts);
+        // Re-bind autofill setelah reinit
+        bindNoniasChange();
+    }
+
+    // ── Inisialisasi Select2 NAMA ─────────────────────────────────
+    function initNamaSelect2(filterByClub) {
+        $('#NAMA').select2('destroy');
+        const opts = {
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: '— Pilih atau ketik nama —',
+            allowClear: true,
+            tags: true,
+            createTag: function (params) {
+                const term = $.trim(params.term).toUpperCase();
+                if (!term) return null;
+                return { id: term, text: term, newTag: true };
+            },
+            language: {
+                noResults: function () { return 'Ketik nama baru jika belum terdaftar'; }
+            }
+        };
+        if (filterByClub) opts.matcher = matcherByClub;
+        $('#NAMA').select2(opts);
+    }
 
     // ── Autofill NAMA, GENDER, TTL saat NONIAS dipilih ────────────
-    $('#NONIAS').on('change', function () {
+    function bindNoniasChange() {
+        $('#NONIAS').off('change.autofill').on('change.autofill', function () {
         const selected = $(this).find('option:selected');
         if (!selected.val()) return;
 
@@ -258,7 +316,7 @@ $(function () {
         }
 
         // Set Gender — mapping Pa/Pi (nilai di tabel NIAS) ke L/P (nilai di form)
-        const genderMapped = (gender === 'Pa' || gender === 'L') ? 'L' : 'P';
+        const genderMapped = (['PA', 'L'].includes(gender.toUpperCase())) ? 'L' : 'P';
         $('select[name="GENDER"]').val(genderMapped).trigger('change');
 
         // Set Tempat Lahir
@@ -266,24 +324,10 @@ $(function () {
 
         // Set Tanggal Lahir
         $('input[name="TGLLAHIR"]').val(tgllahir);
-    });
+        });
+    }
 
-    // ── Inisialisasi Select2 untuk NAMA (bisa ketik manual/tags) ─
-    $('.select2-nama').select2({
-        theme: 'bootstrap-5',
-        width: '100%',
-        placeholder: '— Pilih atau ketik nama —',
-        allowClear: true,
-        tags: true,           // boleh ketik manual
-        createTag: function (params) {
-            const term = $.trim(params.term).toUpperCase();
-            if (!term) return null;
-            return { id: term, text: term, newTag: true };
-        },
-        language: {
-            noResults: function () { return 'Ketik nama baru jika belum terdaftar'; }
-        }
-    });
+
 
     // Auto-uppercase saat mengetik di Select2 NAMA
     $('#NAMA').on('select2:open', function () {
@@ -303,6 +347,14 @@ $(function () {
     function applyTipe(tipe) {
         const domisiliRequired = (tipe === 'update_domisili' || tipe === 'update_all');
         const clubRequired     = (tipe === 'update_club'     || tipe === 'update_all');
+
+        // Filter NONIAS & NAMA: hanya club sendiri saat perpanjangan / pindah domisili
+        const filterByClub = (tipe === 'perpanjangan' || tipe === 'update_domisili');
+        initNoniasSelect2(filterByClub);
+        initNamaSelect2(filterByClub);
+        // Reset pilihan saat tipe berubah
+        $('#NONIAS').val('').trigger('change');
+        $('#NAMA').val('').trigger('change');
 
         // Blok domisili (jenis wilayah + kota/kab + radio mutasi luar jatim)
         if (domisiliRequired) {
@@ -326,6 +378,9 @@ $(function () {
         $('#wrapper_file_sk_mutasi').toggle(clubRequired);
         $('#file_sk_mutasi').prop('required', clubRequired).val('');
     }
+
+    // Inisialisasi awal
+    bindNoniasChange();
 
     // Jalankan saat load
     applyTipe($('#tipe_update').val());
