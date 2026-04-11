@@ -107,7 +107,7 @@ class NiasController extends Controller
             'JENISDOM' => 'nullable|string|max:10',
             'tipe_update' => $isUpdate ? 'required|in:perpanjangan,update_club,update_domisili,update_all' : 'nullable',
             'file_kk' => ($isUpdate ? 'required_if:tipe_update,update_domisili,update_all' : 'required') . '|nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'file_foto' => 'required|file|mimes:jpg,jpeg,png|max:5120',
+            'file_foto' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'file_akte' => ($isUpdate ? 'nullable' : 'required') . '|nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'file_ijazah' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'file_sk_mutasi' => ($isUpdate ? 'required_if:tipe_update,update_club,update_all' : 'nullable') . '|nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
@@ -386,100 +386,48 @@ class NiasController extends Controller
             ->orderBy('NAMA')
             ->get();
 
-        $newRecords = $allRecords->where('is_update', false)->values();
-        $updateRecords = $allRecords->where('is_update', true)->values();
-
         $clubSlug = preg_replace('/[^A-Za-z0-9_]/', '_', Auth::user()->namaclub);
         $timestamp = now()->format('Ymd_His');
         $baseFilename = "DataNIAS_{$clubSlug}_{$timestamp}";
 
-        // ── Helper: tulis records ke file CSV sementara ────────────
-        // Susunan kolom mengikuti template Rekap_Pendaftaran_NIAS:
-        // NO | Club | NAMA LENGKAP ATLET | SUB CABANG OLAHRAGA | EMAIL
-        // | DOMISILI[PROVINSI] | DOMISILI[KOTA/KAB] | DOMISILI[NAMA KOTA/KAB]
-        // | GENDER | TEMPAT LAHIR | TGL LAHIR | NIK
-        // | STATUS NIAS | NO. NIAS JATIM | Daftar NIAS | Keterangan
-        $writeCsv = function ($records, string $label): string {
-            $tmp = tempnam(sys_get_temp_dir(), "nias_{$label}_");
-            $out = fopen($tmp, 'w');
-            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+        // ── Buat satu CSV gabungan (Baru + Update) ─────────────────
+        $tmpCsv = tempnam(sys_get_temp_dir(), 'nias_csv_');
+        $out    = fopen($tmpCsv, 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
 
-            // Baris header 1 (sesuai template)
-            fputcsv($out, [
-                'NO',
-                'Club',
-                'NAMA LENGKAP ATLET',
-                'SUB CABANG OLAHRAGA',
-                'EMAIL',
-                'DOMISILI [SESUAI KK/KTP]',
-                '',
-                '',
-                'GENDER [Pa/Pi]',
-                'TEMPAT LAHIR',
-                'TGL LAHIR',
-                'NIK',
-                'STATUS NIAS [BARU / UPDATE]',
-                'NO. NIAS JATIM (UPDATE)',
-                'Daftar NIAS',
-                'Keterangan',
-            ], ';');
+        fputcsv($out, [
+            'NO', 'Club', 'NAMA LENGKAP ATLET', 'SUB CABANG OLAHRAGA', 'EMAIL',
+            'DOMISILI [SESUAI KK/KTP]', '', '',
+            'GENDER [Pa/Pi]', 'TEMPAT LAHIR', 'TGL LAHIR', 'NIK',
+            'STATUS NIAS [BARU / UPDATE]', 'NO. NIAS JATIM (UPDATE)', 'Daftar NIAS', 'Keterangan',
+        ], ';');
+        fputcsv($out, [
+            '', '', '', '', '',
+            '[PROVINSI]', '[KOTA/KAB]', 'NAMA KOTA/KAB',
+            '', '', '', '', '', '', '', '',
+        ], ';');
 
-            // Baris header 2 (sub-header domisili)
+        foreach ($allRecords as $i => $r) {
             fputcsv($out, [
-                '',
-                '',
-                '',
-                '',
-                '',
-                '[PROVINSI]',
-                '[KOTA/KAB]',
-                'NAMA KOTA/KAB',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
+                $i + 1,
+                $r->NAMACLUB,
+                $r->NAMA,
+                'Finswimming',
+                $r->EMAIL ?? '',
+                ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur',
+                $r->JENISDOM    ?? '',
+                $r->NAMAKOTADOM ?? '',
+                $r->GENDER === 'L' ? 'Pa' : 'Pi',
+                $r->TEMPATLAHIR,
+                $r->TGLLAHIR?->format('d/m/Y') ?? '',
+                $r->NIK ?? '',
+                $r->is_update ? 'UPDATE' : 'BARU',
+                $r->NONIAS ?? '',
+                'JTM',
                 '',
             ], ';');
-
-            foreach ($records as $i => $r) {
-                // Gender: Pa = Laki-laki, Pi = Perempuan (sesuai template)
-                $gender = $r->GENDER === 'L' ? 'Pa' : 'Pi';
-
-                // Status NIAS
-                $statusNias = $r->is_update ? 'UPDATE' : 'BARU';
-
-                // Domisili provinsi selalu JAWA TIMUR kecuali mutasi luar jatim
-                $provinsi = ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur';
-
-                fputcsv($out, [
-                    $i + 1,
-                    $r->NAMACLUB,
-                    $r->NAMA,
-                    'Finswimming',                          // selalu Finswimming
-                    $r->EMAIL ?? '',
-                    $provinsi,                              // PROVINSI
-                    $r->JENISDOM ?? '',                  // KOTA/KAB
-                    $r->NAMAKOTADOM ?? '',                  // NAMA KOTA/KAB
-                    $gender,
-                    $r->TEMPATLAHIR,
-                    $r->TGLLAHIR?->format('d/m/Y') ?? '',
-                    $r->NIK ?? '',
-                    $statusNias,
-                    $r->NONIAS ?? '',                       // NO. NIAS JATIM
-                    'JTM',                                  // selalu JTM
-                    '',                                     // Keterangan (kosong)
-                ], ';');
-            }
-
-            fclose($out);
-            return $tmp;
-        };
-
-        $tmpCsvBaru = $writeCsv($newRecords, 'baru');
-        $tmpCsvUpdate = $writeCsv($updateRecords, 'update');
+        }
+        fclose($out);
 
         // ── Buat ZIP ────────────────────────────────────────────────
         $tmpZip = tempnam(sys_get_temp_dir(), 'nias_zip_') . '.zip';
@@ -489,9 +437,7 @@ class NiasController extends Controller
             return back()->with('error', 'Gagal membuat file ZIP.');
         }
 
-        // Masukkan kedua CSV ke dalam ZIP
-        $zip->addFile($tmpCsvBaru, "{$baseFilename}_DaftarBaru.csv");
-        $zip->addFile($tmpCsvUpdate, "{$baseFilename}_Update.csv");
+        $zip->addFile($tmpCsv, "{$baseFilename}.csv");
 
         // Masukkan dokumen tiap atlet (dari semua records)
         foreach ($allRecords as $i => $r) {
@@ -514,9 +460,8 @@ class NiasController extends Controller
         $zip->close();
 
         // Hapus CSV sementara setelah ZIP ditutup
-        register_shutdown_function(function () use ($tmpCsvBaru, $tmpCsvUpdate) {
-            @unlink($tmpCsvBaru);
-            @unlink($tmpCsvUpdate);
+        register_shutdown_function(function () use ($tmpCsv) {
+            @unlink($tmpCsv);
         });
 
         return response()->download($tmpZip, "{$baseFilename}.zip", [
@@ -552,79 +497,48 @@ class NiasController extends Controller
             return redirect()->route('nias.index')->with('error', 'Tidak ada data untuk dikirim.');
         }
 
-        $newRecords = $allRecords->where('is_update', false)->values();
-        $updateRecords = $allRecords->where('is_update', true)->values();
         $clubSlug = preg_replace('/[^A-Za-z0-9_]/', '_', $namaclub);
         $timestamp = now()->format('Ymd_His');
         $baseFilename = "DataNIAS_{$clubSlug}_{$timestamp}";
 
-        // ── Buat CSV ───────────────────────────────────────────────
-        $writeCsv = function ($records, string $label): string {
-            $tmp = tempnam(sys_get_temp_dir(), "nias_{$label}_");
-            $out = fopen($tmp, 'w');
-            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
-            fputcsv($out, [
-                'NO',
-                'Club',
-                'NAMA LENGKAP ATLET',
-                'SUB CABANG OLAHRAGA',
-                'EMAIL',
-                'DOMISILI [SESUAI KK/KTP]',
-                '',
-                '',
-                'GENDER [Pa/Pi]',
-                'TEMPAT LAHIR',
-                'TGL LAHIR',
-                'NIK',
-                'STATUS NIAS [BARU / UPDATE]',
-                'NO. NIAS JATIM (UPDATE)',
-                'Daftar NIAS',
-                'Keterangan'
-            ], ';');
-            fputcsv($out, [
-                '',
-                '',
-                '',
-                '',
-                '',
-                '[PROVINSI]',
-                '[KOTA/KAB]',
-                'NAMA KOTA/KAB',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                ''
-            ], ';');
-            foreach ($records as $i => $r) {
-                fputcsv($out, [
-                    $i + 1,
-                    $r->NAMACLUB,
-                    $r->NAMA,
-                    'Finswimming',
-                    $r->EMAIL ?? '',
-                    ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur',
-                    $r->JENISDOM ?? '',
-                    $r->NAMAKOTADOM ?? '',
-                    $r->GENDER === 'L' ? 'Pa' : 'Pi',
-                    $r->TEMPATLAHIR,
-                    $r->TGLLAHIR?->format('d/m/Y') ?? '',
-                    $r->NIK ?? '',
-                    $r->is_update ? 'UPDATE' : 'BARU',
-                    $r->NONIAS ?? '',
-                    'JTM',
-                    '',
-                ], ';');
-            }
-            fclose($out);
-            return $tmp;
-        };
+        // ── Buat satu CSV gabungan (Baru + Update) ─────────────────
+        $tmpCsv = tempnam(sys_get_temp_dir(), 'nias_csv_');
+        $out    = fopen($tmpCsv, 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
 
-        $tmpCsvBaru = $writeCsv($newRecords, 'baru');
-        $tmpCsvUpdate = $writeCsv($updateRecords, 'update');
+        fputcsv($out, [
+            'NO', 'Club', 'NAMA LENGKAP ATLET', 'SUB CABANG OLAHRAGA', 'EMAIL',
+            'DOMISILI [SESUAI KK/KTP]', '', '',
+            'GENDER [Pa/Pi]', 'TEMPAT LAHIR', 'TGL LAHIR', 'NIK',
+            'STATUS NIAS [BARU / UPDATE]', 'NO. NIAS JATIM (UPDATE)', 'Daftar NIAS', 'Keterangan',
+        ], ';');
+        fputcsv($out, [
+            '', '', '', '', '',
+            '[PROVINSI]', '[KOTA/KAB]', 'NAMA KOTA/KAB',
+            '', '', '', '', '', '', '', '',
+        ], ';');
+
+        foreach ($allRecords as $i => $r) {
+            fputcsv($out, [
+                $i + 1,
+                $r->NAMACLUB,
+                $r->NAMA,
+                'Finswimming',
+                $r->EMAIL ?? '',
+                ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur',
+                $r->JENISDOM    ?? '',
+                $r->NAMAKOTADOM ?? '',
+                $r->GENDER === 'L' ? 'Pa' : 'Pi',
+                $r->TEMPATLAHIR,
+                $r->TGLLAHIR?->format('d/m/Y') ?? '',
+                $r->NIK ?? '',
+                $r->is_update ? 'UPDATE' : 'BARU',
+                $r->NONIAS ?? '',
+                'JTM',
+                '',
+            ], ';');
+        }
+        fclose($out);
 
         // ── Buat ZIP ───────────────────────────────────────────────
         $tmpZip = tempnam(sys_get_temp_dir(), 'nias_zip_') . '.zip';
@@ -634,8 +548,7 @@ class NiasController extends Controller
             return redirect()->route('nias.index')->with('error', 'Gagal membuat file ZIP.');
         }
 
-        $zip->addFile($tmpCsvBaru, "{$baseFilename}_DaftarBaru.csv");
-        $zip->addFile($tmpCsvUpdate, "{$baseFilename}_Update.csv");
+        $zip->addFile($tmpCsv, "{$baseFilename}.csv");
 
         foreach ($allRecords as $i => $r) {
             $folderAtlet = ($i + 1) . '_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $r->NAMA);
@@ -657,8 +570,7 @@ class NiasController extends Controller
         }
 
         $zip->close();
-        @unlink($tmpCsvBaru);
-        @unlink($tmpCsvUpdate);
+        @unlink($tmpCsv);
 
         $keterangan = (string) $request->input('keterangan', '-');
 
@@ -668,8 +580,8 @@ class NiasController extends Controller
                 ->send(new NiasDataMail(
                     namaclub: $namaclub,
                     emailPelatih: $user->email ?? '-',
-                    jumlahBaru: $newRecords->count(),
-                    jumlahUpdate: $updateRecords->count(),
+                    jumlahBaru: $allRecords->where('is_update', false)->count(),
+                    jumlahUpdate: $allRecords->where('is_update', true)->count(),
                     keterangan: $keterangan,
                     zipPath: $tmpZip,
                     zipFilename: "{$baseFilename}.zip",
