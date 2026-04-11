@@ -101,22 +101,22 @@
 </div>
 
 {{-- ══════════════════════════════════════
-     2. KLUB (Auto/Pilih sesuai Role)
+     2. Club (Auto/Pilih sesuai Role)
 ══════════════════════════════════════ --}}
 <div class="card section-card mb-4">
     <div class="card-header py-2 px-3">
         <span class="fw-bold text-primary small">
-            <i class="bi bi-people me-1"></i>DATA KLUB
+            <i class="bi bi-people me-1"></i>DATA Club
         </span>
     </div>
     <div class="card-body row g-3">
         <div class="col-md-9">
-            <label class="form-label fw-bold">Nama Klub</label>
+            <label class="form-label fw-bold">Nama Club</label>
 
             @if(Auth::user()->role === 'admin')
-                {{-- Tampilan Dropdown untuk Admin: Bisa pilih semua klub --}}
+                {{-- Tampilan Dropdown untuk Admin: Bisa pilih semua Club --}}
                 <select name="NAMACLUB" id="NAMACLUB" class="form-select select2" required>
-                    <option value="">-- Pilih Klub --</option>
+                    <option value="">-- Pilih Club --</option>
                     @foreach($allClubs as $club)
                         <option value="{{ $club }}" {{ (old('NAMACLUB') == $club) ? 'selected' : '' }}>
                             {{ $club }}
@@ -125,15 +125,15 @@
                 </select>
                 <div class="form-text small">
                     <i class="bi bi-shield-check me-1 text-primary"></i>
-                    Anda login sebagai Admin. Anda dapat mendaftarkan atlet untuk klub mana pun.
+                    Anda login sebagai Admin. Anda dapat mendaftarkan atlet untuk Club mana pun.
                 </div>
             @else
-                {{-- Tampilan untuk User Regular: Terkunci ke klub sendiri --}}
+                {{-- Tampilan untuk User Regular: Terkunci ke Club sendiri --}}
                 <input type="text" name="NAMACLUB" class="form-control bg-light fw-semibold"
                        value="{{ $userClub }}" readonly>
                 <div class="form-text small">
                     <i class="bi bi-info-circle me-1 text-info"></i>
-                    Klub otomatis sesuai akun pelatih yang login.
+                    Club otomatis sesuai akun pelatih yang login.
                 </div>
             @endif
         </div>
