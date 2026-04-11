@@ -51,13 +51,27 @@ Data yang disubmit akan masuk ke daftar atlet dengan keterangan <strong>UPDATE /
 </label>
 <select name="NONIAS" id="NONIAS" class="form-select select2-nonias" required>
     <option value="">— Pilih No NIAS —</option>
-    @foreach($existingNias as $en)
+    {{-- Grup: hanya club sendiri (dipakai saat perpanjangan / pindah domisili) --}}
+    @foreach($existingNiasMyClub as $en)
         <option value="{{ $en->NONIAS }}"
+            class="opt-myclub"
             data-nama="{{ $en->NAMA }}"
             data-gender="{{ $en->GENDER }}"
             data-tptlahir="{{ $en->TPTLAHIR }}"
             data-tgllahir="{{ $en->TGLLAHIR ? \Carbon\Carbon::parse($en->TGLLAHIR)->format('Y-m-d') : '' }}"
-            data-namaclub="{{ $en->NAMACLUB }}"
+            {{ old('NONIAS') == $en->NONIAS ? 'selected' : '' }}>
+            {{ $en->NONIAS }} — {{ $en->NAMA }}
+        </option>
+    @endforeach
+    {{-- Grup: semua club lain (hanya tampil saat pindah club / pindah club & domisili) --}}
+    @foreach($existingNias->whereNotIn('NONIAS', $existingNiasMyClub->pluck('NONIAS')) as $en)
+        <option value="{{ $en->NONIAS }}"
+            class="opt-otherclub"
+            style="display:none"
+            data-nama="{{ $en->NAMA }}"
+            data-gender="{{ $en->GENDER }}"
+            data-tptlahir="{{ $en->TPTLAHIR }}"
+            data-tgllahir="{{ $en->TGLLAHIR ? \Carbon\Carbon::parse($en->TGLLAHIR)->format('Y-m-d') : '' }}"
             {{ old('NONIAS') == $en->NONIAS ? 'selected' : '' }}>
             {{ $en->NONIAS }} — {{ $en->NAMA }}
         </option>
@@ -71,22 +85,20 @@ Data yang disubmit akan masuk ke daftar atlet dengan keterangan <strong>UPDATE /
 <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
 <select name="NAMA" id="NAMA" class="form-select select2-nama" required>
     <option value="">— Pilih atau ketik nama —</option>
-    @foreach($existingNias->unique('NAMA') as $en)
-        <option value="{{ $en->NAMA }}"
-            data-namaclub="{{ $en->NAMACLUB }}"
-            {{ old('NAMA') == $en->NAMA ? 'selected' : '' }}>
-            {{ $en->NAMA }}
-        </option>
-    @endforeach
-    {{-- Nama dari existingNames yang tidak ada di existingNias --}}
-    @foreach($existingNames as $nm)
-        @if(!$existingNias->pluck('NAMA')->contains($nm))
-        <option value="{{ $nm }}" data-namaclub="" {{ old('NAMA') == $nm ? 'selected' : '' }}>
+    {{-- Grup: hanya club sendiri --}}
+    @foreach($existingNamesMyClub as $nm)
+        <option value="{{ $nm }}" class="opt-myclub" {{ old('NAMA') == $nm ? 'selected' : '' }}>
             {{ $nm }}
         </option>
-        @endif
     @endforeach
-    {{-- Jika old('NAMA') tidak ada di list (nama baru/manual), tetap tampil --}}
+    {{-- Grup: semua club lain (hanya tampil saat pindah club / pindah club & domisili) --}}
+    @foreach(array_diff($existingNames, $existingNamesMyClub) as $nm)
+        <option value="{{ $nm }}" class="opt-otherclub" style="display:none"
+            {{ old('NAMA') == $nm ? 'selected' : '' }}>
+            {{ $nm }}
+        </option>
+    @endforeach
+    {{-- Jika old('NAMA') tidak ada di list sama sekali (ketik manual) --}}
     @if(old('NAMA') && !in_array(old('NAMA'), $existingNames))
         <option value="{{ old('NAMA') }}" selected>{{ old('NAMA') }}</option>
     @endif
@@ -244,55 +256,52 @@ $(function () {
     // Club user yang sedang login (untuk filter)
     const userClub = '{{ $userClub }}';
 
-    // ── Fungsi matcher: filter option berdasarkan data-namaclub ──
-    function matcherByClub(params, data) {
-        // Selalu tampilkan placeholder
-        if (!data.id) return data;
-        // Jika tidak ada filter (semua club) → tampilkan semua
-        if (!data.element) return data;
-        const club = $(data.element).data('namaclub') || '';
-        // Cocokkan club
-        if (club !== userClub) return null;
-        // Filter teks pencarian
-        if (params.term && data.text.toUpperCase().indexOf(params.term.toUpperCase()) === -1) return null;
-        return data;
+    // ── Show/hide option berdasarkan tipe ────────────────────────
+    // opt-myclub  : selalu tampil
+    // opt-otherclub : tampil hanya saat update_club / update_all
+    function filterDropdowns(filterByClub) {
+        // Untuk NONIAS
+        $('#NONIAS .opt-otherclub').each(function () {
+            $(this).prop('disabled', filterByClub).toggle(!filterByClub);
+        });
+        // Untuk NAMA
+        $('#NAMA .opt-otherclub').each(function () {
+            $(this).prop('disabled', filterByClub).toggle(!filterByClub);
+        });
     }
 
-    // ── Inisialisasi Select2 NONIAS ───────────────────────────────
-    function initNoniasSelect2(filterByClub) {
-        $('#NONIAS').select2('destroy');
-        const opts = {
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: '— Pilih No NIAS —',
-            allowClear: true,
-        };
-        if (filterByClub) opts.matcher = matcherByClub;
-        $('#NONIAS').select2(opts);
-        // Re-bind autofill setelah reinit
-        bindNoniasChange();
+    // ── Inisialisasi Select2 NONIAS (sekali saja) ─────────────────
+    function initNoniasSelect2() {
+        if (!$('#NONIAS').hasClass('select2-hidden-accessible')) {
+            $('#NONIAS').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: '— Pilih No NIAS —',
+                allowClear: true,
+            });
+            bindNoniasChange();
+        }
     }
 
-    // ── Inisialisasi Select2 NAMA ─────────────────────────────────
-    function initNamaSelect2(filterByClub) {
-        $('#NAMA').select2('destroy');
-        const opts = {
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: '— Pilih atau ketik nama —',
-            allowClear: true,
-            tags: true,
-            createTag: function (params) {
-                const term = $.trim(params.term).toUpperCase();
-                if (!term) return null;
-                return { id: term, text: term, newTag: true };
-            },
-            language: {
-                noResults: function () { return 'Ketik nama baru jika belum terdaftar'; }
-            }
-        };
-        if (filterByClub) opts.matcher = matcherByClub;
-        $('#NAMA').select2(opts);
+    // ── Inisialisasi Select2 NAMA (sekali saja) ───────────────────
+    function initNamaSelect2() {
+        if (!$('#NAMA').hasClass('select2-hidden-accessible')) {
+            $('#NAMA').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: '— Pilih atau ketik nama —',
+                allowClear: true,
+                tags: true,
+                createTag: function (params) {
+                    const term = $.trim(params.term).toUpperCase();
+                    if (!term) return null;
+                    return { id: term, text: term, newTag: true };
+                },
+                language: {
+                    noResults: function () { return 'Ketik nama baru jika belum terdaftar'; }
+                }
+            });
+        }
     }
 
     // ── Autofill NAMA, GENDER, TTL saat NONIAS dipilih ────────────
@@ -350,8 +359,7 @@ $(function () {
 
         // Filter NONIAS & NAMA: hanya club sendiri saat perpanjangan / pindah domisili
         const filterByClub = (tipe === 'perpanjangan' || tipe === 'update_domisili');
-        initNoniasSelect2(filterByClub);
-        initNamaSelect2(filterByClub);
+        filterDropdowns(filterByClub);
         // Reset pilihan saat tipe berubah
         $('#NONIAS').val('').trigger('change');
         $('#NAMA').val('').trigger('change');
@@ -379,7 +387,9 @@ $(function () {
         $('#file_sk_mutasi').prop('required', clubRequired).val('');
     }
 
-    // Inisialisasi awal
+    // Inisialisasi Select2 (sekali saja)
+    initNoniasSelect2();
+    initNamaSelect2();
     bindNoniasChange();
 
     // Jalankan saat load

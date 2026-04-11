@@ -647,13 +647,29 @@ class NiasController extends Controller
         $userRole = $user->role;
         $expiredDate = now()->day(28)->addYears(2);
 
-        // 1. Ambil semua NAMA unik (Tetap ambil semua agar pelatih bisa cari nama atlet)
-        $existingNames = NiasExisting::distinct()->orderBy('NAMA')->pluck('NAMA');
-
-        // 2. Ambil data No NIAS (Sertakan NAMACLUB untuk filter di view)
+        // 1. Data NONIAS & NAMA untuk tipe yg butuh semua club (update_club, update_all)
         $existingNias = NiasExisting::whereNotNull('NONIAS')
             ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB')
+            ->orderBy('NAMA')
             ->get();
+
+        $existingNames = NiasExisting::distinct()
+            ->orderBy('NAMA')
+            ->pluck('NAMA')
+            ->toArray();
+
+        // 2. Data NONIAS & NAMA HANYA club sendiri (perpanjangan, update_domisili)
+        $existingNiasMyClub = NiasExisting::whereNotNull('NONIAS')
+            ->where('NAMACLUB', $userClub)
+            ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB')
+            ->orderBy('NAMA')
+            ->get();
+
+        $existingNamesMyClub = NiasExisting::distinct()
+            ->where('NAMACLUB', $userClub)
+            ->orderBy('NAMA')
+            ->pluck('NAMA')
+            ->toArray();
 
         $allClubs = [];
         if ($userRole === 'admin') {
@@ -664,11 +680,13 @@ class NiasController extends Controller
         return view('nias.update_nias', compact(
             'domisilis',
             'userClub',
-            'userRole', // Kirim role ke view
+            'userRole',
             'expiredDate',
             'allClubs',
+            'existingNias',
             'existingNames',
-            'existingNias'
+            'existingNiasMyClub',
+            'existingNamesMyClub'
         ));
     }
 }
