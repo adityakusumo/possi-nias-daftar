@@ -15,7 +15,7 @@
                     <i class="bi bi-arrow-repeat me-1"></i>Update NIAS
                 </a>
                 <a href="{{ route('nias.existing') }}" class="btn btn-secondary btn-sm fw-semibold shadow-sm">
-                    <i class="bi bi-people me-1"></i>NIAS Jatim yang sudah terdaftar
+                    <i class="bi bi-people me-1"></i>NIAS Jatim Existing
                 </a>
             </div>
         </div>

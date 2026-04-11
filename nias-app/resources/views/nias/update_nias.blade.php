@@ -121,7 +121,7 @@ value="{{ old('TGLLAHIR') }}" required>
 
 {{-- Gender & Club --}}
 <div class="col-md-3">
-<label class="form-label">Gender <span class="text-danger">*</span></label>
+<label class="form-label">Jenis Kelamin <span class="text-danger">*</span></label>
 <select name="GENDER" class="form-select" required>
 <option value="L" {{ old('GENDER') === 'L' ? 'selected' : '' }}>Laki-laki</option>
 <option value="P" {{ old('GENDER') === 'P' ? 'selected' : '' }}>Perempuan</option>
