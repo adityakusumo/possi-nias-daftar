@@ -16,7 +16,7 @@ $q = request()->only('search');
 <div class="card page-card">
 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
 <h5 class="mb-0">
-<i class="bi bi-people me-2"></i>Data Atlet Existing — {{ $namaclub }}
+<i class="bi bi-people me-2"></i>Data NIAS — {{ $namaclub }}
 </h5>
 <a href="{{ route('nias.index') }}" class="btn btn-light btn-sm">
 <i class="bi bi-arrow-left me-1"></i>Kembali
