@@ -25,11 +25,18 @@
             text-align: center;
         }
         .auth-header .logo-icon {
-            width: 64px; height: 64px;
-            background: var(--possi-gold);
+            width: 80px; height: 80px;
             border-radius: 50%;
+            overflow: hidden;
             display: inline-flex; align-items: center; justify-content: center;
-            font-size: 1.8rem; color: #fff; margin-bottom: .8rem;
+            margin-bottom: .8rem;
+            background: #fff;
+            padding: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.2);
+        }
+        .auth-header .logo-icon img {
+            width: 100%; height: 100%;
+            object-fit: contain; border-radius: 50%;
         }
         .auth-header h4 { color:#fff; font-weight:700; margin:0; }
         .auth-header p  { color:rgba(255,255,255,.65); font-size:.82rem; margin:0; }
@@ -46,7 +53,9 @@
 <div class="auth-card card">
     {{-- Header --}}
     <div class="auth-header">
-        <div class="logo-icon"><i class="bi bi-water"></i></div>
+        <div class="logo-icon">
+            <img src="{{ asset('images/logo-possi.jpg') }}" alt="POSSI Jawa Timur">
+        </div>
         <h4>NIAS POSSI</h4>
         <p>Jawa Timur — Portal Pelatih &amp; Official</p>
     </div>
