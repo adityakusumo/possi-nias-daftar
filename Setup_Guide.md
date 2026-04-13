@@ -25,15 +25,69 @@ Pastikan hal-hal berikut sudah terpenuhi:
 
 ---
 
-## Langkah 1: Setup MariaDB
+## Langkah 1: Persiapan Awal VPS
 
-### 1.1 Login ke MariaDB sebagai root
+### 1.1 Update & Upgrade Sistem
+
+Pastikan semua paket sistem sudah up-to-date sebelum memulai instalasi:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+> **📌 Catatan:** Proses ini mungkin memakan waktu beberapa menit tergantung kondisi VPS. Jika muncul prompt pilihan konfigurasi, pilih opsi default (tekan Enter).
+
+### 1.2 Setup Swap (Opsional tapi Disarankan)
+
+Tambahkan swap 2GB agar VPS tidak kehabisan memori saat menjalankan Composer atau proses berat lainnya:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+> **📌 Catatan:** Perintah `tee -a /etc/fstab` memastikan swap aktif otomatis setiap kali VPS reboot. Verifikasi swap sudah aktif dengan: `free -h`
+
+### 1.3 Install Nginx
+
+```bash
+sudo apt install nginx -y
+```
+
+> **📌 Catatan:** Setelah instalasi, Nginx akan otomatis berjalan. Verifikasi dengan: `sudo systemctl status nginx`
+
+### 1.4 Install MariaDB
+
+```bash
+sudo apt install mariadb-server -y
+sudo mysql_secure_installation
+```
+
+> **📌 Catatan:** `mysql_secure_installation` akan memandu kamu mengamankan instalasi MariaDB — set root password, hapus anonymous user, nonaktifkan remote root login, dan hapus database test. Ikuti promptnya sesuai kebutuhan.
+
+### 1.5 Install Composer
+
+```bash
+curl -sS https://getcomposer.org/installer | php
+sudo mv composer.phar /usr/local/bin/composer
+```
+
+> **📌 Catatan:** Verifikasi instalasi Composer dengan: `composer --version`
+
+---
+
+## Langkah 2: Setup MariaDB
+
+### 2.1 Login ke MariaDB sebagai root
 
 ```bash
 sudo mariadb -u root
 ```
 
-### 1.2 Buat user dan database
+### 2.2 Buat user dan database
 
 Jalankan perintah berikut di dalam prompt MariaDB:
 
@@ -47,7 +101,7 @@ EXIT;
 
 > **📌 Catatan:** Ganti `PASSWORD_KAMU` dengan password yang kuat. Simpan password ini karena akan dipakai di file `.env` Laravel.
 
-### 1.3 Verifikasi user dan database
+### 2.3 Verifikasi user dan database
 
 ```sql
 sudo mariadb -u root
@@ -58,15 +112,15 @@ EXIT;
 
 ---
 
-## Langkah 2: Clone Project dari GitHub
+## Langkah 3: Clone Project dari GitHub
 
-### 2.1 Masuk ke direktori web server
+### 3.1 Masuk ke direktori web server
 
 ```bash
 cd /var/www
 ```
 
-### 2.2 Clone repository
+### 3.2 Clone repository
 
 ```bash
 sudo git clone https://github.com/USERNAME/NAMA_REPO.git
@@ -74,14 +128,14 @@ sudo git clone https://github.com/USERNAME/NAMA_REPO.git
 
 > **📌 Catatan:** Ganti `USERNAME` dan `NAMA_REPO` sesuai repository GitHub kamu.
 
-### 2.3 Set kepemilikan folder
+### 3.3 Set kepemilikan folder
 
 ```bash
 sudo chown -R itpossijatim:www-data /var/www/NAMA_REPO
 sudo chmod -R 755 /var/www/NAMA_REPO
 ```
 
-### 2.4 Masuk ke folder project
+### 3.4 Masuk ke folder project
 
 ```bash
 cd /var/www/NAMA_REPO
@@ -89,7 +143,7 @@ cd /var/www/NAMA_REPO
 
 ---
 
-## Langkah 3: Install Dependencies Composer
+## Langkah 4: Install Dependencies Composer
 
 ```bash
 composer install --no-dev --optimize-autoloader
@@ -99,15 +153,15 @@ composer install --no-dev --optimize-autoloader
 
 ---
 
-## Langkah 4: Konfigurasi File .env
+## Langkah 5: Konfigurasi File .env
 
-### 4.1 Salin file .env dari contoh
+### 5.1 Salin file .env dari contoh
 
 ```bash
 cp .env.example .env
 ```
 
-### 4.2 Edit file .env
+### 5.2 Edit file .env
 
 ```bash
 nano .env
@@ -135,7 +189,7 @@ DB_PASSWORD=PASSWORD_KAMU
 
 > **📌 Catatan:** Simpan file dengan `CTRL+O` lalu Enter, kemudian keluar dengan `CTRL+X`.
 
-### 4.3 Generate Application Key
+### 5.3 Generate Application Key
 
 ```bash
 php artisan key:generate
@@ -145,15 +199,15 @@ php artisan key:generate
 
 ---
 
-## Langkah 5: Migrasi Database
+## Langkah 6: Migrasi Database
 
-### 5.1 Jalankan migrasi
+### 6.1 Jalankan migrasi
 
 ```bash
 php artisan migrate --force
 ```
 
-### 5.2 (Opsional) Jalankan seeder
+### 6.2 (Opsional) Jalankan seeder
 
 Jika project kamu memiliki data seeder:
 
@@ -165,11 +219,11 @@ php artisan db:seed --force
 
 ---
 
-## Langkah 6: Restore Database dari File .sql
+## Langkah 7: Restore Database dari File .sql
 
 Gunakan langkah ini jika kamu sudah punya file `.sql` existing (backup dari database lama) dan ingin me-restore-nya ke database `dbnias`, **sebagai pengganti** `php artisan migrate` di Langkah 5.
 
-### 6.1 Upload file .sql ke VPS
+### 7.1 Upload file .sql ke VPS
 
 Dari komputer lokal kamu, jalankan perintah berikut di terminal lokal (bukan di VPS):
 
@@ -179,14 +233,14 @@ scp /path/lokal/namafile.sql itpossijatim@IP_PUBLIC_VPS:/home/itpossijatim/
 
 > **📌 Catatan:** Ganti `/path/lokal/namafile.sql` dengan lokasi file `.sql` di komputer kamu, dan `IP_PUBLIC_VPS` dengan IP VPS kamu.
 
-### 6.2 Masuk ke VPS dan verifikasi file terupload
+### 7.2 Masuk ke VPS dan verifikasi file terupload
 
 ```bash
 ssh itpossijatim@IP_PUBLIC_VPS
 ls -lh ~/namafile.sql
 ```
 
-### 6.3 Restore file .sql ke database dbnias
+### 7.3 Restore file .sql ke database dbnias
 
 ```bash
 mariadb -u itpossi -p dbnias < ~/namafile.sql
@@ -199,7 +253,7 @@ Kamu akan diminta memasukkan password user `itpossi`. Tunggu hingga proses seles
 > nohup mariadb -u itpossi -p dbnias < ~/namafile.sql &
 > ```
 
-### 6.4 Verifikasi hasil restore
+### 7.4 Verifikasi hasil restore
 
 ```bash
 mariadb -u itpossi -p dbnias
@@ -215,7 +269,7 @@ EXIT;
 
 > **📌 Catatan:** Ganti `nama_tabel_utama` dengan salah satu nama tabel di database kamu untuk memastikan data sudah masuk.
 
-### 6.5 Bersihkan file .sql setelah selesai (opsional tapi disarankan)
+### 7.5 Bersihkan file .sql setelah selesai (opsional tapi disarankan)
 
 ```bash
 rm ~/namafile.sql
@@ -223,7 +277,7 @@ rm ~/namafile.sql
 
 ---
 
-## Langkah 7: Set Permission Storage & Cache
+## Langkah 8: Set Permission Storage & Cache
 
 ```bash
 sudo chown -R itpossijatim:www-data /var/www/possi-nias-daftar/nias-app/storage
@@ -236,9 +290,9 @@ sudo chmod -R 775 /var/www/possi-nias-daftar/nias-app/bootstrap/cache
 
 ---
 
-## Langkah 8: Konfigurasi Nginx
+## Langkah 9: Konfigurasi Nginx
 
-### 8.1 Buat file konfigurasi Nginx
+### 9.1 Buat file konfigurasi Nginx
 
 ```bash
 sudo nano /etc/nginx/sites-available/NAMA_REPO
@@ -281,7 +335,7 @@ server {
 
 > **📌 Catatan:** Ganti `IP_PUBLIC_VPS_ATAU_DOMAIN` dan `NAMA_REPO` sesuai milikmu.
 
-### 8.2 Aktifkan konfigurasi Nginx
+### 9.2 Aktifkan konfigurasi Nginx
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/NAMA_REPO /etc/nginx/sites-enabled/
@@ -291,7 +345,7 @@ sudo systemctl restart nginx
 
 > **✅ Tip:** Pastikan output `nginx -t` menunjukkan: `syntax is ok` dan `test is successful`.
 
-### 8.3 Pastikan PHP-FPM 8.4 berjalan
+### 9.3 Pastikan PHP-FPM 8.4 berjalan
 
 ```bash
 sudo systemctl enable php8.4-fpm
@@ -301,7 +355,7 @@ sudo systemctl status php8.4-fpm
 
 ---
 
-## Langkah 9: Optimasi Laravel untuk Production
+## Langkah 10: Optimasi Laravel untuk Production
 
 ```bash
 php artisan config:cache
@@ -314,7 +368,7 @@ php artisan event:cache
 
 ---
 
-## Langkah 10: Update Project (Workflow Git Pull)
+## Langkah 11: Update Project (Workflow Git Pull)
 
 Setiap kali ada perubahan kode dari GitHub, jalankan urutan perintah ini:
 
@@ -334,9 +388,9 @@ sudo systemctl restart nginx
 
 ---
 
-## Langkah 11: Menghubungkan Domain ke VPS
+## Langkah 12: Menghubungkan Domain ke VPS
 
-### 11.1 Setting DNS Zone di Registrar (contoh: Hostinger)
+### 12.1 Setting DNS Zone di Registrar (contoh: Hostinger)
 
 Login ke panel registrar domain kamu, masuk ke menu **DNS Zone**, lalu pastikan record berikut sudah ada:
 
@@ -347,7 +401,7 @@ Login ke panel registrar domain kamu, masuk ke menu **DNS Zone**, lalu pastikan 
 
 > **📌 Catatan:** Record `A` mengarahkan domain utama ke IP VPS. Record `CNAME` mengarahkan `www` ke domain utama. Kedua record ini wajib ada.
 
-### 11.2 Cek propagasi DNS
+### 12.2 Cek propagasi DNS
 
 Tunggu 5–30 menit setelah setting DNS, lalu cek apakah sudah propagasi:
 
@@ -357,7 +411,7 @@ https://dnschecker.org/#A/possijatim.my.id
 
 Jika sudah muncul IP `103.127.99.32` di banyak lokasi (hijau semua), DNS sudah aktif.
 
-### 11.3 Update server_name di Nginx
+### 12.3 Update server_name di Nginx
 
 ```bash
 sudo nano /etc/nginx/sites-available/nias-app
@@ -376,7 +430,7 @@ sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-### 11.4 Update APP_URL di .env Laravel
+### 12.4 Update APP_URL di .env Laravel
 
 ```bash
 nano /var/www/possi-nias-daftar/nias-app/.env
@@ -395,7 +449,7 @@ cd /var/www/possi-nias-daftar/nias-app
 php artisan config:cache
 ```
 
-### 11.5 Test akses domain
+### 12.5 Test akses domain
 
 Buka browser dan akses:
 
@@ -406,17 +460,17 @@ http://www.possijatim.my.id
 
 ---
 
-## Langkah 12: Pasang SSL Gratis (HTTPS) dengan Certbot
+## Langkah 13: Pasang SSL Gratis (HTTPS) dengan Certbot
 
 Agar website bisa diakses via `https://` dengan sertifikat SSL gratis dari Let's Encrypt:
 
-### 12.1 Install Certbot
+### 13.1 Install Certbot
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
 ```
 
-### 12.2 Request sertifikat SSL
+### 13.2 Request sertifikat SSL
 
 ```bash
 sudo certbot --nginx -d possijatim.my.id -d www.possijatim.my.id
@@ -427,7 +481,7 @@ Ikuti instruksinya:
 - Ketik `Y` untuk setuju terms of service
 - Pilih apakah mau redirect HTTP ke HTTPS (pilih `2` agar otomatis redirect)
 
-### 12.3 Update APP_URL di .env ke HTTPS
+### 13.3 Update APP_URL di .env ke HTTPS
 
 ```bash
 nano /var/www/possi-nias-daftar/nias-app/.env
@@ -446,7 +500,7 @@ cd /var/www/possi-nias-daftar/nias-app
 php artisan config:cache
 ```
 
-### 12.4 Test akses HTTPS
+### 13.4 Test akses HTTPS
 
 Buka browser:
 
