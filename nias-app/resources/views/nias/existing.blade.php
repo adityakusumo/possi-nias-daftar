@@ -10,13 +10,18 @@ function sortUrl(string $col, string $currentCol, string $currentDir, array $que
     $dir = ($col === $currentCol && $currentDir === 'asc') ? 'desc' : 'asc';
     return request()->fullUrlWithQuery(array_merge($query, ['sort' => $col, 'dir' => $dir, 'page' => 1]));
 }
-$q = request()->only('search');
+$q = request()->only('search', 'club');
 @endphp
 
 <div class="card page-card">
 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
 <h5 class="mb-0">
-<i class="bi bi-people me-2"></i>Data NIAS — {{ $namaclub }}
+<i class="bi bi-people me-2"></i>Data NIAS —
+@if($isAdmin)
+    {{ $filterClub ?? 'Semua Club' }}
+@else
+    {{ $namaclub }}
+@endif
 </h5>
 <a href="{{ route('nias.index') }}" class="btn btn-light btn-sm">
 <i class="bi bi-arrow-left me-1"></i>Kembali
@@ -27,17 +32,31 @@ $q = request()->only('search');
 
 <div class="alert alert-info small mb-3">
 <i class="bi bi-info-circle me-2"></i>
-Menampilkan data atlet yang sudah terdaftar di database NIAS Jawa Timur untuk club <strong>{{ $namaclub }}</strong>.
-Default urutan: Kadaluwarsa (terlama di atas), kemudian Nama (A–Z).
+@if($isAdmin)
+    Menampilkan data atlet dari <strong>{{ $filterClub ?? 'semua club' }}</strong>.
+@else
+    Menampilkan data atlet untuk club <strong>{{ $namaclub }}</strong>.
+@endif
+Default urutan: Kadaluwarsa (terbaru di atas), kemudian Nama (A–Z).
 </div>
 
 {{-- Search --}}
 <form method="GET" action="{{ route('nias.existing') }}" class="row g-2 mb-3">
-{{-- Pertahankan sort aktif saat search --}}
 <input type="hidden" name="sort" value="{{ $sortCol }}">
 <input type="hidden" name="dir"  value="{{ $sortDir }}">
 
-<div class="col-md-5">
+@if($isAdmin)
+<div class="col-md-4">
+<select name="club" class="form-select">
+<option value="">— Semua Club —</option>
+@foreach($allClubs as $club)
+<option value="{{ $club }}" {{ $filterClub === $club ? 'selected' : '' }}>{{ $club }}</option>
+@endforeach
+</select>
+</div>
+@endif
+
+<div class="col-md-4">
 <div class="input-group">
 <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
 <input type="text" name="search" class="form-control border-start-0"
@@ -47,7 +66,7 @@ value="{{ request('search') }}">
 </div>
 <div class="col-auto d-flex gap-1">
 <button type="submit" class="btn btn-primary">Cari</button>
-@if(request('search'))
+@if(request('search') || request('club'))
 <a href="{{ route('nias.existing', ['sort' => $sortCol, 'dir' => $sortDir]) }}"
 class="btn btn-outline-secondary">Reset</a>
 @endif
@@ -86,6 +105,8 @@ $thSort = function(string $col, string $label) use ($sortCol, $sortDir, $q): str
 {!! $thSort('TPTLAHIR', 'Tempat Lahir') !!}
 {!! $thSort('TGLLAHIR', 'Tanggal Lahir') !!}
 {!! $thSort('NONIAS',   'No Nias Jatim') !!}
+{!! $thSort('JENISDOM',   'Jenis Dom') !!}
+{!! $thSort('NAMAKOTADOM','Kota/Kab Dom') !!}
 {!! $thSort('EXPIRED',  'Kadaluwarsa') !!}
 </tr>
 </thead>
@@ -107,13 +128,15 @@ $thSort = function(string $col, string $label) use ($sortCol, $sortDir, $q): str
 {{ $r->TGLLAHIR ? \Carbon\Carbon::parse($r->TGLLAHIR)->format('d/m/Y') : '—' }}
 </td>
 <td><code class="small">{{ $r->NONIAS ?? '—' }}</code></td>
+<td class="small">{{ $r->JENISDOM ?? '—' }}</td>
+<td class="small">{{ $r->NAMAKOTADOM ?? '—' }}</td>
 <td class="small {{ $r->EXPIRED && \Carbon\Carbon::parse($r->EXPIRED)->isPast() ? 'text-danger fw-semibold' : '' }}">
 {{ $r->EXPIRED ? \Carbon\Carbon::parse($r->EXPIRED)->format('d/m/Y') : '—' }}
 </td>
 </tr>
 @empty
 <tr>
-<td colspan="8" class="text-center text-muted py-5">
+<td colspan="10" class="text-center text-muted py-5">
 <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
 Tidak ada data atlet existing untuk club ini.
 </td>

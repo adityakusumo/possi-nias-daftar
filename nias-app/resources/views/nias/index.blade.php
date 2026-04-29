@@ -2,20 +2,33 @@
 @section('title', 'Data NIAS')
 
 @section('content')
+@php $isNiasOpen = $isNiasOpen ?? \App\Models\AppSetting::isNiasOpen(); @endphp
 
     {{-- SECTION 1: DATA BELUM DIKIRIM --}}
     <div class="card page-card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0"><i class="bi bi-table me-2"></i>Pendaftaran Nias Baru/Update</h5>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
+                {{-- Admin pakai welcome.reset agar session last_app dihapus dulu --}}
+                @if(Auth::user()->role === 'admin')
+                <a href="{{ route('welcome.reset') }}" class="btn btn-success btn-sm fw-semibold">
+                    <i class="bi bi-grid-3x3-gap me-1"></i>Kembali ke Portal
+                </a>
+                @else
+                <a href="{{ route('welcome') }}" class="btn btn-success btn-sm fw-semibold">
+                    <i class="bi bi-grid-3x3-gap me-1"></i>Kembali ke Portal
+                </a>
+                @endif
+                @if(Auth::user()->role === 'admin' || $isNiasOpen)
                 <a href="{{ route('nias.create') }}" class="btn btn-warning btn-sm fw-semibold shadow-sm">
                     <i class="bi bi-person-plus me-1"></i>Daftar NIAS Baru
                 </a>
-                <a href="{{ route('nias.update-data') }}" class="btn btn-primary btn-sm fw-semibold shadow-sm">
+                <a href="{{ route('nias.update-data') }}" class="btn btn-light btn-sm fw-semibold shadow-sm text-dark border">
                     <i class="bi bi-arrow-repeat me-1"></i>Update NIAS
                 </a>
+                @endif
                 <a href="{{ route('nias.existing') }}" class="btn btn-secondary btn-sm fw-semibold shadow-sm">
-                    <i class="bi bi-people me-1"></i>NIAS Jatim Existing
+                    <i class="bi bi-people me-1"></i>NIAS Jatim yang sudah terdaftar
                 </a>
             </div>
         </div>
@@ -42,12 +55,7 @@
                 </div>
             </form>
 
-            {{-- Tab filter --}}
-            @php
-                $totalSemua = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->count();
-                $totalBaru = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->where('is_update', false)->count();
-                $totalUpdate = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->where('is_update', true)->count();
-            @endphp
+            {{-- Tab filter — nilai dari controller, admin tanpa filter user_id --}}
             <ul class="nav nav-tabs mb-3">
                 <li class="nav-item">
                     <a class="nav-link {{ !request('jenis') ? 'active' : '' }}"
@@ -70,6 +78,18 @@
                     </a>
                 </li>
             </ul>
+
+            {{-- Alert jadwal tutup untuk user regular --}}
+            @if(!$isNiasOpen && Auth::user()->role !== 'admin')
+            <div class="alert alert-warning small mb-3 d-flex align-items-center gap-2">
+                <i class="bi bi-lock-fill fs-5 text-warning"></i>
+                <div>
+                    <strong>Masa pendaftaran NIAS sedang ditutup.</strong>
+                    Anda hanya dapat melihat data yang sudah ada dan mengakses data NIAS existing.
+                    Untuk informasi jadwal pembukaan, silakan hubungi admin.
+                </div>
+            </div>
+            @endif
 
             {{-- Toolbar bulk action --}}
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
@@ -159,10 +179,17 @@
                                     {{ $r->EXPIRED?->format('d/m/Y') }}
                                 </td>
                                 <td>
-                                    @if($r->STATUS == 1 && !$r->EXPIRED?->isPast())
+                                    @if(!$r->is_update && !$r->EXPIRED)
+                                        {{-- Pendaftaran baru, belum ada expired --}}
+                                        <span class="badge bg-primary">DAFTAR BARU</span>
+                                    @elseif($r->is_update && $r->EXPIRED && $r->EXPIRED->isPast())
+                                        {{-- Update/perpanjang, tgl expired sudah lewat --}}
+                                        <span class="badge badge-expired">EXPIRED</span>
+                                    @elseif($r->is_update && $r->EXPIRED && !$r->EXPIRED->isPast())
+                                        {{-- Update/perpanjang, tgl expired belum lewat --}}
                                         <span class="badge badge-aktif">AKTIF</span>
                                     @else
-                                        <span class="badge badge-expired">EXPIRED</span>
+                                        <span class="badge bg-secondary">—</span>
                                     @endif
                                 </td>
                                 <td class="text-center" style="white-space:nowrap">
@@ -235,13 +262,46 @@
             <div class="card-body p-3">
                 <div class="alert alert-success small mb-3">
                     <i class="bi bi-info-circle me-2"></i>
-                    Data berikut sudah dikirim ke POSSI Jatim dan tidak dapat diedit atau dihapus.
+                    Data berikut sudah dikirim ke POSSI Jatim.
+                    @if(Auth::user()->role !== 'admin')
+                        Data tidak dapat diedit atau dihapus.
+                    @endif
                 </div>
+
+                {{-- Toolbar bulk action sent — admin only --}}
+                @if(Auth::user()->role === 'admin')
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="checkbox" id="chk_sent_all" class="form-check-input mt-0" title="Pilih semua">
+                        <span id="sent_selected_count" class="text-muted small">0 dipilih</span>
+                        <button type="button" id="btn_delete_sent_selected"
+                                class="btn btn-sm btn-outline-danger d-none"
+                                onclick="confirmDeleteSentSelected()">
+                            <i class="bi bi-trash me-1"></i>Hapus Dipilih
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-danger"
+                            onclick="confirmDeleteSentAll()">
+                        <i class="bi bi-trash3 me-1"></i>Hapus Semua Terkirim
+                    </button>
+                </div>
+                <form id="form_delete_sent_selected" method="POST"
+                      action="{{ route('nias.destroy-sent-selected') }}" style="display:none;">
+                    @csrf @method('DELETE')
+                </form>
+                <form id="form_delete_sent_all" method="POST"
+                      action="{{ route('nias.destroy-sent-all') }}" style="display:none;">
+                    @csrf @method('DELETE')
+                </form>
+                @endif
 
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm align-middle mb-2">
                         <thead class="table-success">
                             <tr>
+                                @if(Auth::user()->role === 'admin')
+                                <th style="width:36px"></th>
+                                @endif
                                 <th>#</th>
                                 <th>No. NIAS</th>
                                 <th>Nama</th>
@@ -257,6 +317,12 @@
                         <tbody>
                             @foreach($sentRecords as $r)
                                 <tr class="table-light">
+                                    @if(Auth::user()->role === 'admin')
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input chk_sent_row mt-0"
+                                               value="{{ $r->ID }}">
+                                    </td>
+                                    @endif
                                     <td class="text-muted small">{{ $sentRecords->firstItem() + $loop->index }}</td>
                                     <td><code class="small">{{ $r->NONIAS ?? '—' }}</code></td>
                                     <td class="fw-semibold">
@@ -289,11 +355,19 @@
                                             <i class="bi bi-send-check"></i> TERKIRIM
                                         </span>
                                     </td>
-                                    <td class="text-center">
+                                    <td class="text-center" style="white-space:nowrap">
                                         <a href="{{ route('nias.show', $r) }}" class="btn btn-sm btn-outline-primary py-0"
                                             title="Detail">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        @if(Auth::user()->role === 'admin')
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger py-0"
+                                                title="Hapus"
+                                                onclick="confirmDeleteSentOne('{{ addslashes($r->NAMA) }}', '{{ route('nias.destroy', $r) }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -511,6 +585,82 @@
                     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Mengirim...';
                     form.submit();
                 }
+            });
+        }
+
+        // ── Checkbox sent: select all / per baris ────────────────────
+        const chkSentAll = document.getElementById('chk_sent_all');
+        if (chkSentAll) {
+            chkSentAll.addEventListener('change', function () {
+                document.querySelectorAll('.chk_sent_row').forEach(c => c.checked = this.checked);
+                updateSentSelectedCount();
+            });
+            document.addEventListener('change', function (e) {
+                if (e.target.classList.contains('chk_sent_row')) updateSentSelectedCount();
+            });
+        }
+
+        function updateSentSelectedCount() {
+            const checked = document.querySelectorAll('.chk_sent_row:checked');
+            const count   = checked.length;
+            const el  = document.getElementById('sent_selected_count');
+            const btn = document.getElementById('btn_delete_sent_selected');
+            if (el)  el.textContent = count + ' dipilih';
+            if (btn) btn.classList.toggle('d-none', count === 0);
+        }
+
+        function confirmDeleteSentOne(nama, url) {
+            Swal.fire({
+                title: 'Hapus Data Terkirim?',
+                html: 'Data <strong>' + nama + '</strong> akan dihapus permanen.',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Hapus!', cancelButtonText: 'Batal',
+            }).then(result => {
+                if (result.isConfirmed) {
+                    const form = document.getElementById('form_delete_one');
+                    form.action = url; form.submit();
+                }
+            });
+        }
+
+        function confirmDeleteSentSelected() {
+            const ids = [...document.querySelectorAll('.chk_sent_row:checked')].map(c => c.value);
+            if (!ids.length) return;
+            Swal.fire({
+                title: 'Hapus ' + ids.length + ' Data Terkirim?',
+                text: 'Data yang dipilih akan dihapus permanen.',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Hapus!', cancelButtonText: 'Batal',
+            }).then(result => {
+                if (result.isConfirmed) {
+                    const form = document.getElementById('form_delete_sent_selected');
+                    form.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
+                    ids.forEach(id => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden'; input.name = 'ids[]'; input.value = id;
+                        form.appendChild(input);
+                    });
+                    form.submit();
+                }
+            });
+        }
+
+        function confirmDeleteSentAll() {
+            const total = {{ $sentRecords->total() ?? 0 }};
+            if (!total) { Swal.fire('Tidak Ada Data', 'Tidak ada data terkirim.', 'info'); return; }
+            Swal.fire({
+                title: 'Hapus SEMUA Data Terkirim?',
+                html: 'Seluruh <strong>' + total + '</strong> data terkirim akan dihapus permanen.<br>'
+                    + '<span class="text-danger fw-bold">Tindakan ini tidak bisa dibatalkan!</span>',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Hapus Semua!', cancelButtonText: 'Batal',
+                input: 'text', inputPlaceholder: 'Ketik HAPUS untuk konfirmasi',
+                inputValidator: (value) => { if (value !== 'HAPUS') return 'Ketik HAPUS untuk melanjutkan.'; }
+            }).then(result => {
+                if (result.isConfirmed) document.getElementById('form_delete_sent_all').submit();
             });
         }
 

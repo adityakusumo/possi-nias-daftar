@@ -54,7 +54,7 @@
     {{-- Header --}}
     <div class="auth-header">
         <div class="logo-icon">
-            <img src="{{ asset('images/logo-possi.jpg') }}" alt="POSSI Jawa Timur">
+            <img src="{{ asset('images/logo-possi.jpg') }}" alt="POSSI">
         </div>
         <h4>NIAS POSSI</h4>
         <p>Jawa Timur — Portal Pelatih &amp; Official</p>
@@ -108,6 +108,14 @@
                     </button>
                     @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
+            </div>
+
+            {{-- Lupa password --}}
+            <div class="text-end mb-1">
+                <a href="{{ route('password.request') }}"
+                   class="small text-decoration-none text-muted">
+                    Lupa password?
+                </a>
             </div>
 
             {{-- Remember --}}

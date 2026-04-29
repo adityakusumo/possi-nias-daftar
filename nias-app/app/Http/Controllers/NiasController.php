@@ -61,7 +61,15 @@ class NiasController extends Controller
         $sentRecords = $sentQuery->orderBy('sent_at', 'desc')
             ->paginate(10, ['*'], 'sent_page');
 
-        return view('nias.index', compact('records', 'sentRecords'));
+        // Hitung total untuk tab badge — admin tanpa filter user_id
+        $isAdmin    = $user->role === 'admin';
+        $baseQuery  = $isAdmin ? Nias::where('is_sent', false) : Nias::where('user_id', $user->id)->where('is_sent', false);
+        $totalSemua  = (clone $baseQuery)->count();
+        $totalBaru   = (clone $baseQuery)->where('is_update', false)->count();
+        $totalUpdate = (clone $baseQuery)->where('is_update', true)->count();
+
+        $isNiasOpen = \App\Models\AppSetting::isNiasOpen();
+        return view('nias.index', compact('records', 'sentRecords', 'totalSemua', 'totalBaru', 'totalUpdate', 'isNiasOpen'));
     }
 
     // -------------------------------------------------------------------------
@@ -175,12 +183,12 @@ class NiasController extends Controller
                 'KDKOTA' => $clubInfo[2] ?? null,
                 'NAMAKOTA' => $clubInfo[3] ?? null,
                 'KDJENISDOM' => $domInfo[0] ?? null,
-                'JENISDOM' => $domInfo[1] ?? null,
+                'JENISDOM' => $validated['JENISDOM'] ?: ($domInfo[1] ?? null),
                 'KDPROPDOM' => '05',
                 'NAMAPROPDOM' => 'JAWA TIMUR',
                 'KDKOTADOM' => $domInfo[2] ?? null,
-                'NAMAKOTADOM' => $validated['NAMAKOTADOM'],
-                'STATUS' => 1,
+                'NAMAKOTADOM' => $this->stripWilayahPrefix($validated['NAMAKOTADOM'] ?? null) ?: ($validated['NAMAKOTADOM'] ?? null),
+                'STATUS' => 2, // 2 = pending acc
                 'TGLDAFTAR' => $today->toDateString(),
                 'TGLDAFTAR_UPDATE' => $isUpdate ? $today->toDateString() : null,
                 'EXPIRED' => $expired->toDateString(),
@@ -228,7 +236,14 @@ class NiasController extends Controller
         sort($domisilis);
         $userClub = Auth::user()->namaclub;
 
-        return view('nias.edit', compact('nias', 'domisilis', 'userClub'));
+        // $allClubs diperlukan di _form.blade.php untuk dropdown admin
+        $allClubs = [];
+        if (Auth::user()->role === 'admin') {
+            $allClubs = array_keys(Nias::$clubLookup);
+            sort($allClubs);
+        }
+
+        return view('nias.edit', compact('nias', 'domisilis', 'userClub', 'allClubs'));
     }
 
     // -------------------------------------------------------------------------
@@ -322,6 +337,27 @@ class NiasController extends Controller
     }
 
     // -------------------------------------------------------------------------
+    // SERVE FILE — tampilkan file dokumen (admin bisa lihat semua)
+    // -------------------------------------------------------------------------
+    public function serveFile($id, string $col)
+    {
+        $allowed = ['file_kk','file_foto','file_akte','file_ijazah','file_sk_mutasi'];
+        if (!in_array($col, $allowed)) {
+            abort(404);
+        }
+
+        $nias = Nias::findOrFail($id);
+        $this->authorizeNias($nias);
+
+        $path = $nias->$col;
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            abort(404, 'File tidak ditemukan.');
+        }
+
+        return response()->file(Storage::disk('local')->path($path));
+    }
+
+    // -------------------------------------------------------------------------
     // DESTROY SELECTED
     // -------------------------------------------------------------------------
     public function destroySelected(Request $request)
@@ -332,9 +368,12 @@ class NiasController extends Controller
             return redirect()->route('nias.index')->with('error', 'Tidak ada data yang dipilih.');
         }
 
-        $records = Nias::whereIn('ID', $ids)
-            ->where('user_id', Auth::id())
-            ->get();
+        $query = Nias::whereIn('ID', $ids);
+        // Admin bisa hapus data siapapun, regular hanya milik sendiri
+        if (Auth::user()->role !== 'admin') {
+            $query->where('user_id', Auth::id());
+        }
+        $records = $query->get();
 
         foreach ($records as $nias) {
             foreach (['file_kk', 'file_foto', 'file_akte', 'file_ijazah', 'file_sk_mutasi'] as $col) {
@@ -353,7 +392,12 @@ class NiasController extends Controller
     // -------------------------------------------------------------------------
     public function destroyAll()
     {
-        $records = Nias::where('user_id', Auth::id())->get();
+        // Admin hapus semua, regular hanya milik sendiri
+        $query = Auth::user()->role === 'admin'
+            ? Nias::query()
+            : Nias::where('user_id', Auth::id());
+
+        $records = $query->get();
 
         foreach ($records as $nias) {
             foreach (['file_kk', 'file_foto', 'file_akte', 'file_ijazah', 'file_sk_mutasi'] as $col) {
@@ -368,10 +412,86 @@ class NiasController extends Controller
     }
 
     // -------------------------------------------------------------------------
+    // DESTROY SENT SELECTED — admin only
+    // -------------------------------------------------------------------------
+    public function destroySentSelected(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        if (empty($ids)) {
+            return redirect()->route('nias.index')->with('error', 'Tidak ada data yang dipilih.');
+        }
+
+        $records = Nias::whereIn('ID', $ids)->where('is_sent', true)->get();
+
+        foreach ($records as $nias) {
+            foreach (['file_kk','file_foto','file_akte','file_ijazah','file_sk_mutasi'] as $col) {
+                if ($nias->$col) Storage::disk('local')->delete($nias->$col);
+            }
+            $nias->delete();
+        }
+
+        return redirect()->route('nias.index')
+            ->with('success', count($records) . ' data terkirim berhasil dihapus.');
+    }
+
+    // -------------------------------------------------------------------------
+    // DESTROY SENT ALL — admin only
+    // -------------------------------------------------------------------------
+    public function destroySentAll()
+    {
+        $records = Nias::where('is_sent', true)->get();
+
+        foreach ($records as $nias) {
+            foreach (['file_kk','file_foto','file_akte','file_ijazah','file_sk_mutasi'] as $col) {
+                if ($nias->$col) Storage::disk('local')->delete($nias->$col);
+            }
+            $nias->delete();
+        }
+
+        return redirect()->route('nias.index')
+            ->with('success', 'Semua data terkirim (' . count($records) . ' data) berhasil dihapus.');
+    }
+
+    // -------------------------------------------------------------------------
+    // ACC — Admin setujui data NIAS
+    // -------------------------------------------------------------------------
+    public function acc($id)
+    {
+        $nias = Nias::findOrFail($id);
+        $nias->update(['STATUS' => 1]); // 1 = disetujui
+        return redirect()->route('nias.show', $id)
+            ->with('success', "Data {$nias->NAMA} berhasil di-ACC.");
+    }
+
+    // -------------------------------------------------------------------------
+    // REJECT — Admin tolak data NIAS
+    // -------------------------------------------------------------------------
+    public function reject(Request $request, $id)
+    {
+        $nias = Nias::findOrFail($id);
+        $nias->update(['STATUS' => 0]); // 0 = ditolak/expired
+        $alasan = $request->input('alasan', '');
+        $msg = "Data {$nias->NAMA} ditolak.";
+        if ($alasan) $msg .= " Alasan: {$alasan}";
+        return redirect()->route('nias.show', $id)->with('error', $msg);
+    }
+
+    // -------------------------------------------------------------------------
     // HELPER
     // -------------------------------------------------------------------------
+// Helper: strip prefix kota/kab dari nama wilayah untuk CSV
+    private function stripWilayahPrefix(?string $nama): string
+    {
+        if (!$nama) return '';
+        return trim(preg_replace('/^(kota|kab\.?|kabupaten)\s+/i', '', $nama));
+    }
+
     private function authorizeNias(Nias $nias): void
     {
+        // Admin bisa akses semua data tanpa filter user_id
+        if (Auth::user()->role === 'admin') {
+            return;
+        }
         if ((int) $nias->user_id !== (int) Auth::id()) {
             abort(403, 'Kamu tidak punya akses ke data ini.');
         }
@@ -392,19 +512,46 @@ class NiasController extends Controller
 
         // ── Buat satu CSV gabungan (Baru + Update) ─────────────────
         $tmpCsv = tempnam(sys_get_temp_dir(), 'nias_csv_');
-        $out    = fopen($tmpCsv, 'w');
+        $out = fopen($tmpCsv, 'w');
         fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
 
         fputcsv($out, [
-            'NO', 'Club', 'NAMA LENGKAP ATLET', 'SUB CABANG OLAHRAGA', 'EMAIL',
-            'DOMISILI [SESUAI KK/KTP]', '', '',
-            'GENDER [Pa/Pi]', 'TEMPAT LAHIR', 'TGL LAHIR', 'NIK',
-            'STATUS NIAS [BARU / UPDATE]', 'NO. NIAS JATIM (UPDATE)', 'Daftar NIAS', 'Keterangan',
+            'NO',
+            'Club',
+            'NAMA LENGKAP ATLET',
+            'SUB CABANG OLAHRAGA',
+            'EMAIL',
+            'DOMISILI [SESUAI KK/KTP]',
+            '',
+            '',
+            'GENDER [Pa/Pi]',
+            'TEMPAT LAHIR',
+            'TGL LAHIR',
+            'NIK',
+            'STATUS NIAS [BARU / UPDATE]',
+            'NO. NIAS JATIM (UPDATE)',
+            'Daftar NIAS',
+            'Jenis Daftar',
+            'Keterangan',
         ], ';');
         fputcsv($out, [
-            '', '', '', '', '',
-            '[PROVINSI]', '[KOTA/KAB]', 'NAMA KOTA/KAB',
-            '', '', '', '', '', '', '', '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '[PROVINSI]',
+            '[KOTA/KAB]',
+            'NAMA KOTA/KAB',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
         ], ';');
 
         foreach ($allRecords as $i => $r) {
@@ -415,15 +562,16 @@ class NiasController extends Controller
                 'Finswimming',
                 $r->EMAIL ?? '',
                 ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur',
-                $r->JENISDOM    ?? '',
-                $r->NAMAKOTADOM ?? '',
+                $r->JENISDOM ?? '',
+                $this->stripWilayahPrefix($r->NAMAKOTADOM),
                 $r->GENDER === 'L' ? 'Pa' : 'Pi',
                 $r->TEMPATLAHIR,
-                $r->TGLLAHIR?->format('d/m/Y') ?? '',
-                $r->NIK ?? '',
+                $r->TGLLAHIR?->format('m/d/Y') ?? '',
+                $r->NIK    ? "'" . $r->NIK    : '',
                 $r->is_update ? 'UPDATE' : 'BARU',
-                $r->NONIAS ?? '',
+                $r->NONIAS ? "'" . $r->NONIAS : '',
                 'JTM',
+                $r->tipe_update ?? '',
                 '',
             ], ';');
         }
@@ -479,43 +627,72 @@ class NiasController extends Controller
         ]);
 
         $user = Auth::user();
+        // Email user/pelatih yang sedang login untuk Cc
+        $userEmail = $user->email;
 
-        // Ambil hanya data yang belum dikirim
+        // Ambil hanya data yang belum dikirim untuk pengecekan awal
         $records = Nias::where('user_id', $user->id)
-            ->where('is_sent', false)  // ← TAMBAHKAN KONDISI INI
+            ->where('is_sent', false)
             ->get();
 
         if ($records->isEmpty()) {
             return back()->with('error', 'Tidak ada data baru untuk dikirim.');
         }
 
-        $namaclub = $user->namaclub;
-
-        $allRecords = Nias::where('user_id', Auth::id())->orderBy('NAMA')->get();
+        // Mengambil semua records milik user untuk disertakan dalam file ZIP (Baru + Update)
+        $allRecords = Nias::where('user_id', $user->id)->orderBy('NAMA')->get();
 
         if ($allRecords->isEmpty()) {
             return redirect()->route('nias.index')->with('error', 'Tidak ada data untuk dikirim.');
         }
 
+        $namaclub = $user->namaclub;
         $clubSlug = preg_replace('/[^A-Za-z0-9_]/', '_', $namaclub);
         $timestamp = now()->format('Ymd_His');
         $baseFilename = "DataNIAS_{$clubSlug}_{$timestamp}";
 
         // ── Buat satu CSV gabungan (Baru + Update) ─────────────────
         $tmpCsv = tempnam(sys_get_temp_dir(), 'nias_csv_');
-        $out    = fopen($tmpCsv, 'w');
+        $out = fopen($tmpCsv, 'w');
         fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
 
         fputcsv($out, [
-            'NO', 'Club', 'NAMA LENGKAP ATLET', 'SUB CABANG OLAHRAGA', 'EMAIL',
-            'DOMISILI [SESUAI KK/KTP]', '', '',
-            'GENDER [Pa/Pi]', 'TEMPAT LAHIR', 'TGL LAHIR', 'NIK',
-            'STATUS NIAS [BARU / UPDATE]', 'NO. NIAS JATIM (UPDATE)', 'Daftar NIAS', 'Keterangan',
+            'NO',
+            'Club',
+            'NAMA LENGKAP ATLET',
+            'SUB CABANG OLAHRAGA',
+            'EMAIL',
+            'DOMISILI [SESUAI KK/KTP]',
+            '',
+            '',
+            'GENDER [Pa/Pi]',
+            'TEMPAT LAHIR',
+            'TGL LAHIR',
+            'NIK',
+            'STATUS NIAS [BARU / UPDATE]',
+            'NO. NIAS JATIM (UPDATE)',
+            'Daftar NIAS',
+            'Jenis Daftar',
+            'Keterangan',
         ], ';');
         fputcsv($out, [
-            '', '', '', '', '',
-            '[PROVINSI]', '[KOTA/KAB]', 'NAMA KOTA/KAB',
-            '', '', '', '', '', '', '', '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '[PROVINSI]',
+            '[KOTA/KAB]',
+            'NAMA KOTA/KAB',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
         ], ';');
 
         foreach ($allRecords as $i => $r) {
@@ -526,15 +703,16 @@ class NiasController extends Controller
                 'Finswimming',
                 $r->EMAIL ?? '',
                 ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur',
-                $r->JENISDOM    ?? '',
-                $r->NAMAKOTADOM ?? '',
+                $r->JENISDOM ?? '',
+                $this->stripWilayahPrefix($r->NAMAKOTADOM),
                 $r->GENDER === 'L' ? 'Pa' : 'Pi',
                 $r->TEMPATLAHIR,
-                $r->TGLLAHIR?->format('d/m/Y') ?? '',
-                $r->NIK ?? '',
+                $r->TGLLAHIR?->format('m/d/Y') ?? '',
+                $r->NIK    ? "'" . $r->NIK    : '',
                 $r->is_update ? 'UPDATE' : 'BARU',
-                $r->NONIAS ?? '',
+                $r->NONIAS ? "'" . $r->NONIAS : '',
                 'JTM',
+                $r->tipe_update ?? '',
                 '',
             ], ';');
         }
@@ -560,9 +738,9 @@ class NiasController extends Controller
                 'file_sk_mutasi' => 'SKMutasi'
             ];
             foreach ($fileCols as $col => $label) {
-                if (!$r->$col || !Storage::disk('local')->exists($r->$col))
+                if (!$r->$col || !\Storage::disk('local')->exists($r->$col))
                     continue;
-                $storagePath = Storage::disk('local')->path($r->$col);
+                $storagePath = \Storage::disk('local')->path($r->$col);
                 $ext = pathinfo($storagePath, PATHINFO_EXTENSION);
                 $namaFile = $label . '_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $r->NAMA) . '.' . $ext;
                 $zip->addFile($storagePath, 'dokumen/' . $folderAtlet . '/' . $namaFile);
@@ -574,12 +752,16 @@ class NiasController extends Controller
 
         $keterangan = (string) $request->input('keterangan', '-');
 
-        // ── Kirim Email ────────────────────────────────────────────
+        // ── Kirim Email dengan Cc ke Pelatih ───────────────────────
         try {
-            Mail::to(config('mail.nias_recipient', 'it.possijatim@gmail.com'))
-                ->send(new NiasDataMail(
+            // Alamat tujuan utama (Admin)
+            $recipient = config('mail.nias_recipient', 'it.possijatim@gmail.com');
+
+            \Mail::to($recipient)
+                ->cc($userEmail) // Menambahkan Cc ke alamat email user yang sedang login
+                ->send(new \App\Mail\NiasDataMail(
                     namaclub: $namaclub,
-                    emailPelatih: $user->email ?? '-',
+                    emailPelatih: $userEmail ?? '-',
                     jumlahBaru: $allRecords->where('is_update', false)->count(),
                     jumlahUpdate: $allRecords->where('is_update', true)->count(),
                     keterangan: $keterangan,
@@ -594,15 +776,17 @@ class NiasController extends Controller
 
         @unlink($tmpZip);
 
+        // Tandai data sebagai sudah dikirim
         Nias::where('user_id', $user->id)
             ->where('is_sent', false)
             ->update([
                 'is_sent' => true,
                 'sent_at' => now(),
+                'STATUS'  => 3, // 3 = sudah dikirim, menunggu acc
             ]);
 
         return redirect()->route('nias.index')
-            ->with('success', 'Data berhasil dikirim ke it.possijatim@gmail.com!');
+            ->with('success', "Data berhasil dikirim ke {$recipient} dan Cc ke {$userEmail}!");
     }
 
     // -------------------------------------------------------------------------
@@ -610,16 +794,30 @@ class NiasController extends Controller
     // -------------------------------------------------------------------------
     public function existing(Request $request)
     {
-        $namaclub = Auth::user()->namaclub;
+        $user = Auth::user();
+        $isAdmin = $user->role === 'admin';
+        $namaclub = $user->namaclub;
 
-        // Kolom yang boleh di-sort
-        $sortableColumns = ['NAMA', 'GENDER', 'TPTLAHIR', 'TGLLAHIR', 'NONIAS', 'EXPIRED'];
+        $sortableColumns = ['NAMA', 'GENDER', 'TPTLAHIR', 'TGLLAHIR', 'NONIAS', 'JENISDOM', 'NAMAKOTADOM', 'EXPIRED'];
         $sortCol = in_array($request->sort, $sortableColumns) ? $request->sort : 'EXPIRED';
         $sortDir = $request->has('dir') ? ($request->dir === 'desc' ? 'desc' : 'asc') : 'desc';
 
-        $query = NiasExisting::where('NAMACLUB', $namaclub)
-            ->orderBy($sortCol, $sortDir)
-            ->orderBy('NAMA', 'asc'); // secondary sort selalu nama asc
+        $query = NiasExisting::orderBy($sortCol, $sortDir)
+            ->orderBy('NAMA', 'asc');
+
+        // Admin: tampilkan semua, bisa filter by club via dropdown
+        // User regular: filter by club sendiri
+        if ($isAdmin) {
+            $filterClub = $request->filled('club') ? $request->club : null;
+            if ($filterClub) {
+                $query->where('NAMACLUB', $filterClub);
+            }
+            $allClubs = NiasExisting::distinct()->orderBy('NAMACLUB')->pluck('NAMACLUB');
+        } else {
+            $query->where('NAMACLUB', $namaclub);
+            $allClubs = collect();
+            $filterClub = null;
+        }
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -631,7 +829,15 @@ class NiasController extends Controller
 
         $records = $query->paginate(20)->withQueryString();
 
-        return view('nias.existing', compact('records', 'namaclub', 'sortCol', 'sortDir'));
+        return view('nias.existing', compact(
+            'records',
+            'namaclub',
+            'sortCol',
+            'sortDir',
+            'isAdmin',
+            'allClubs',
+            'filterClub'
+        ));
     }
 
     // -------------------------------------------------------------------------

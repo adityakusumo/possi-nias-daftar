@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Models\AppSetting;
 
 class AuthController extends Controller
 {
@@ -15,9 +16,9 @@ class AuthController extends Controller
     // =========================================================================
     public function showLogin()
     {
-        // Kalau sudah login, langsung ke dashboard
+        // Kalau sudah login, langsung ke halaman pilihan
         if (Auth::check()) {
-            return redirect()->route('nias.index');
+            return redirect()->route('welcome');
         }
 
         return view('auth.login');
@@ -47,13 +48,10 @@ class AuthController extends Controller
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
-            // ✨ REDIRECT BERDASARKAN ROLE
-            if (Auth::user()->role === 'admin') {
-                return redirect()->route('admin.existing')
-                ->with('success', 'Selamat datang, Admin ' . Auth::user()->nama . '!');
-            }
-
-            return redirect()->intended(route('nias.index'))
+            // Semua role → ke halaman pilihan aplikasi
+            // WelcomeController::show() yang handle redirect admin
+            // ke pilihan terakhir jika session sudah ada
+            return redirect()->route('welcome')
             ->with('success', 'Selamat datang, ' . Auth::user()->nama . '!');
         }
 
@@ -69,7 +67,7 @@ class AuthController extends Controller
     public function showRegister()
     {
         if (Auth::check()) {
-            return redirect()->route('nias.index');
+            return redirect()->route('welcome');
         }
 
         $clubs = array_keys(Nias::$clubLookup);
@@ -102,10 +100,21 @@ class AuthController extends Controller
             'password.confirmed' => 'Konfirmasi password tidak cocok.',
         ]);
 
+        // Cek batas akun per club sebelum buat akun baru
+        $namaclub   = $request->namaclub;
+        $maxAllowed = AppSetting::getMaxAccountsForClub($namaclub);
+        $currentCount = User::where('namaclub', $namaclub)->where('role', 'regular')->count();
+
+        if ($currentCount >= $maxAllowed) {
+            return back()
+                ->withErrors(['namaclub' => "Club {$namaclub} sudah mencapai batas maksimum {$maxAllowed} akun pelatih."])
+                ->withInput();
+        }
+
         $user = User::create([
             'nama'     => strtoupper(trim($request->nama)),
             'gender'   => $request->gender,
-            'namaclub' => $request->namaclub,
+            'namaclub' => $namaclub,
             'role'     => 'regular',
             'email'    => strtolower(trim($request->email)),
             'password' => Hash::make($request->password),
@@ -114,8 +123,8 @@ class AuthController extends Controller
         // Auto login setelah daftar
         Auth::login($user);
 
-        return redirect()->route('nias.index')
-            ->with('success', 'Akun berhasil dibuat! Selamat datang, ' . $user->nama . '.');
+        return redirect()->route('welcome')
+        ->with('success', 'Akun berhasil dibuat! Selamat datang, ' . $user->nama . '.');
     }
 
     // =========================================================================
@@ -128,6 +137,6 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('auth.login.show')
-            ->with('success', 'Kamu berhasil logout.');
+        ->with('success', 'Kamu berhasil logout.');
     }
 }

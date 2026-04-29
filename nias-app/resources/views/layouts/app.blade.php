@@ -121,6 +121,31 @@
             background: #dc3545;
         }
 
+        .nav-tabs .nav-link {
+            color: #6c757d;
+            background-color: #f8f9fa;
+            border: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .nav-tabs .nav-link.active {
+            color: #003d8f !important;
+            background-color: #fff !important;
+            border-bottom: 3px solid #003d8f !important;
+        }
+
+        .nav-tabs .nav-link.disabled {
+            background-color: #e9ecef;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .nav-tabs .nav-link:hover:not(.disabled) {
+            background-color: #e2e6ea;
+            border-bottom: 2px solid #dee2e6;
+        }
+
         footer {
             background: var(--possi-blue);
             color: rgba(255, 255, 255, .65);
@@ -168,6 +193,14 @@
                             <span>{{ Auth::user()->nama }}</span>
                             <span class="club-tag">{{ Auth::user()->namaclub }}</span>
                         </div>
+
+                        {{-- Tombol Setting Akun --}}
+                        <a href="{{ route('user.setting') }}"
+                            class="btn btn-sm btn-outline-light {{ request()->routeIs('user.setting') ? 'active' : '' }}"
+                            title="Pengaturan Akun">
+                            <i class="bi bi-person-gear me-1"></i>Akun
+                        </a>
+
                         <form method="POST" action="{{ route('auth.logout') }}" class="m-0">
                             @csrf
                             <button type="submit" class="btn btn-sm btn-outline-light" title="Logout">
