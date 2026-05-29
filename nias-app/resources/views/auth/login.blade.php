@@ -137,6 +137,12 @@
                 Daftar di sini
             </a>
         </p>
+
+        <div class="text-center mt-3">
+            <a href="{{ route('home') }}" class="btn btn-outline-secondary btn-sm px-4">
+                <i class="bi bi-arrow-left me-1"></i>Kembali ke Portal
+            </a>
+        </div>
     </div>
 </div>
 

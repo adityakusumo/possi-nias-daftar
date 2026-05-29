@@ -133,6 +133,7 @@
                             <th>Tgl Update</th>
                             <th>Expired</th>
                             <th>Status</th>
+                            <th class="text-end">Biaya</th>
                             <th class="text-center">Aksi</th>
                         </tr>
                     </thead>
@@ -192,6 +193,10 @@
                                         <span class="badge bg-secondary">—</span>
                                     @endif
                                 </td>
+                                <td class="text-end small fw-semibold text-success">
+                                    @php $biaya = $r->is_update ? ($tarifNias['update'] ?? 30000) : ($tarifNias['baru'] ?? 60000); @endphp
+                                    Rp {{ number_format($biaya, 0, ',', '.') }}
+                                </td>
                                 <td class="text-center" style="white-space:nowrap">
                                     <a href="{{ route('nias.show', $r) }}" class="btn btn-sm btn-outline-primary py-0"
                                         title="Detail">
@@ -209,7 +214,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="13" class="text-center text-muted py-5">
+                                <td colspan="14" class="text-center text-muted py-5">
                                     <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
                                     Belum ada data NIAS terdaftar.
                                 </td>
@@ -238,17 +243,78 @@
         </div>
     </div>
 
-    {{-- Export & Kirim Email --}}
-    @if($records->total() > 0)
-        <div class="d-flex justify-content-end gap-2 mb-4">
-            <a href="{{ route('nias.export') }}" class="btn btn-success">
-                <i class="bi bi-filetype-csv me-1"></i>Export CSV (ZIP)
-            </a>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalKirimEmail">
+    {{-- Total Biaya + Bukti Transfer + Tombol Kirim + Export CSV --}}
+    @php
+        $allPending      = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->get();
+        $totalBiayaSemua = $allPending->sum(fn($r) => $r->is_update ? ($tarifNias['update'] ?? 30000) : ($tarifNias['baru'] ?? 60000));
+        $jmlBaru         = $allPending->where('is_update', false)->count();
+        $jmlUpdate       = $allPending->where('is_update', true)->count();
+    @endphp
+    <div class="d-flex flex-column align-items-end gap-3 mt-2 mb-4">
+
+        {{-- Total Biaya --}}
+        <div class="card border-success" style="min-width:300px">
+            <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                <span class="text-muted small">Total Biaya Pendaftaran</span>
+                <span class="fw-bold text-success fs-5">Rp {{ number_format($totalBiayaSemua, 0, ',', '.') }}</span>
+            </div>
+            <div class="card-footer py-1 px-3 bg-light small text-muted">
+                {{ $jmlBaru }} atlet baru + {{ $jmlUpdate }} atlet update
+            </div>
+        </div>
+
+        {{-- Upload Bukti Transfer --}}
+        <div class="card shadow-sm" style="min-width:300px">
+            <div class="card-header py-2 px-3 small fw-bold">
+                <i class="bi bi-receipt me-1"></i>Bukti Transfer
+                @if($hasBukti)
+                    <span class="badge bg-success ms-1">Sudah diupload</span>
+                @else
+                    <span class="badge bg-warning text-dark ms-1">Belum diupload</span>
+                @endif
+            </div>
+            <div class="card-body py-2 px-3">
+                <form method="POST" action="{{ route('nias.bukti-transfer') }}" enctype="multipart/form-data"
+                      class="d-flex gap-2 align-items-center justify-content-end flex-wrap">
+                    @csrf
+                    <input type="file" name="bukti_transfer" class="form-control form-control-sm"
+                           accept=".pdf,.jpg,.jpeg,.png" style="max-width:200px">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-upload me-1"></i>Upload
+                    </button>
+                    @if($hasBukti)
+                    <a href="{{ route('nias.serve-bukti', Auth::id()) }}" target="_blank"
+                       class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-eye me-1"></i>Lihat
+                    </a>
+                    @endif
+                </form>
+            </div>
+        </div>
+
+        {{-- Tombol Kirim Email --}}
+        <div style="min-width:300px">
+            @if(!$hasBukti)
+            <div class="alert alert-warning small py-1 px-2 mb-1 text-end">
+                <i class="bi bi-exclamation-triangle me-1"></i>Upload bukti transfer dulu sebelum mengirim.
+            </div>
+            @endif
+            <button type="button"
+                    {{ !$hasBukti ? 'disabled' : '' }}
+                    class="btn btn-primary w-100 {{ !$hasBukti ? 'disabled' : '' }}"
+                    data-bs-toggle="modal" data-bs-target="#modalKirimEmail">
                 <i class="bi bi-envelope-arrow-up me-1"></i>Kirim ke POSSI Jatim
             </button>
         </div>
-    @endif
+
+        {{-- Tombol Export CSV --}}
+        <div style="min-width:300px">
+            <a href="{{ route('nias.export') }}" class="btn btn-outline-success w-100">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+            </a>
+        </div>
+
+    </div>
 
     {{-- SECTION 2: DATA YANG SUDAH DIKIRIM --}}
     @if($sentRecords->total() > 0)

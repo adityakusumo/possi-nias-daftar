@@ -7,56 +7,63 @@
 <div class="card-header bg-white p-0 border-bottom-0">
 <ul class="nav nav-tabs nav-fill" id="lombaTab" role="tablist">
 <li class="nav-item">
-<a class="nav-link active fw-bold py-3 border-top-0 border-start-0 border-end-0"
-href="{{ route('lomba.form_a1') }}">
-<i class="bi bi-1-circle-fill me-2"></i>Data Kontingen
+<a class="nav-link active fw-bold py-3 border-top-0 border-start-0 border-end-0" href="{{ route('lomba.form_a1') }}">
+<i class="bi bi-1-circle-fill me-1"></i> Data Kontingen
 </a>
 </li>
 <li class="nav-item">
 <a class="nav-link {{ !$isKontingenSaved ? 'disabled text-muted' : '' }} py-3 border-0"
 href="{{ $isKontingenSaved ? route('lomba.form_a1_namaatlet') : '#' }}">
-<i class="bi bi-2-circle me-2"></i>Data Nama Atlet
+<i class="bi bi-2-circle me-1"></i> Data Atlet
 </a>
 </li>
 <li class="nav-item">
-<a class="nav-link disabled py-3 border-0" href="#">
-<i class="bi bi-3-circle me-2"></i>Form Selanjutnya...
+<a class="nav-link {{ !$isKontingenSaved ? 'disabled text-muted' : '' }} py-3 border-0"
+href="{{ $isKontingenSaved ? route('lomba.form_a3_perorangan') : '#' }}">
+<i class="bi bi-3-circle me-1"></i> A3 Perorangan
+</a>
+</li>
+<li class="nav-item">
+<a class="nav-link {{ !$isKontingenSaved ? 'disabled text-muted' : '' }} py-3 border-0"
+href="{{ $isKontingenSaved ? route('lomba.form_a3_estafet') : '#' }}">
+<i class="bi bi-4-circle me-1"></i> A3 Estafet
+</a>
+</li>
+<li class="nav-item">
+<a class="nav-link {{ !$isKontingenSaved ? 'disabled text-muted' : '' }} py-3 border-0"
+href="{{ $isKontingenSaved ? route('lomba.proses') : '#' }}">
+<i class="bi bi-5-circle me-1"></i> Proses
+</a>
+</li>
+<li class="nav-item">
+<a class="nav-link {{ !$isKontingenSaved ? 'disabled text-muted' : '' }} py-3 border-0"
+href="{{ $isKontingenSaved ? route('lomba.biaya') : '#' }}">
+<i class="bi bi-6-circle me-1"></i> Biaya
 </a>
 </li>
 </ul>
 </div>
 
 <div class="card-body p-4">
-{{-- Alert Info --}}
-{{-- Alert Info --}}
 @if(session('error'))
-<div class="alert alert-danger small">
-<i class="bi bi-exclamation-triangle me-2"></i> {{ session('error') }}
-</div>
+<div class="alert alert-danger small"><i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}</div>
 @endif
 
 @if($isKontingenSaved)
 <div class="alert alert-success d-flex align-items-center small py-2">
 <i class="bi bi-check-circle-fill me-2"></i>
-<div>
-Data kontingen Anda sudah tersimpan. Anda dapat melanjutkan ke <strong>Data Nama Atlet</strong> atau memperbarui data di bawah ini.
-</div>
+Data kontingen sudah tersimpan. Lanjut ke <strong>Data Atlet</strong> atau perbarui di bawah.
 </div>
 @else
 <div class="alert alert-info d-flex align-items-center small py-2">
 <i class="bi bi-info-circle-fill me-2"></i>
-<div>
-Selamat datang! Silakan lengkapi <strong>Data Kontingen</strong> terlebih dahulu untuk membuka form pendaftaran atlet.
-</div>
+Lengkapi <strong>Data Kontingen</strong> terlebih dahulu.
 </div>
 @endif
 
-{{-- Form Kontingen (Isi form sama seperti sebelumnya) --}}
 <form id="save-kontingen-form" action="{{ route('form_a1.saveKontingen') }}" method="POST">
 @csrf
-
 <div class="row g-4">
-{{-- Bagian Kiri: Jenis Kompetisi --}}
 <div class="col-md-5">
 <div class="p-3 bg-light rounded shadow-sm border">
 <label class="form-label d-block mb-3 fw-bold">Jenis Kompetisi</label>
@@ -73,15 +80,13 @@ Selamat datang! Silakan lengkapi <strong>Data Kontingen</strong> terlebih dahulu
 </div>
 </div>
 
-{{-- Bagian Kanan: Detail Kontingen --}}
 <div class="col-md-7">
 <div class="mb-3">
 <label class="form-label fw-bold">Nama Kontingen / Club</label>
 <input type="text" name="nama_kontingen" class="form-control bg-light"
-value="{{ Auth::user()->namaclub }}" readonly>
+value="{{ Auth::user()?->namaclub ?? old('nama_kontingen', $kontingen->nama_kontingen ?? '') }}" readonly>
 </div>
 
-{{-- Dropdown dari MSTKOTA --}}
 <div id="detail_lokasi">
 <div class="mb-3">
 <label class="form-label fw-bold">Pilih Kabupaten / Kota</label>
@@ -97,8 +102,6 @@ data-nama="{{ $kota->NAMAKOTA }}"
 @endforeach
 </select>
 </div>
-
-{{-- Hidden Inputs --}}
 <input type="hidden" name="jenis" id="input_jenis_wilayah" value="{{ old('jenis', $kontingen->jenis_wilayah ?? '') }}">
 <input type="hidden" name="nama_wilayah" id="input_nama_wilayah" value="{{ old('nama_wilayah', $kontingen->nama_wilayah ?? '') }}">
 
@@ -119,50 +122,25 @@ data-nama="{{ $kota->NAMAKOTA }}"
 </form>
 </div>
 </div>
+
+<style>
+.nav-tabs .nav-link { color: #6c757d; background-color: #f8f9fa; border: none; border-bottom: 2px solid transparent; }
+.nav-tabs .nav-link.active { color: #003d8f !important; background-color: #fff !important; border-bottom: 3px solid #003d8f !important; }
+.nav-tabs .nav-link.disabled { background-color: #e9ecef; opacity: 0.6; }
+.nav-tabs .nav-link:hover:not(.disabled) { background-color: #e2e6ea; }
+</style>
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-@if(session('success'))
-Swal.fire({
-    icon: 'success',
-    title: 'Berhasil!',
-    text: "{{ session('success') }}",
-          confirmButtonColor: '#003d8f',
-});
-@endif
-
-@if(session('error'))
-Swal.fire({
-    icon: 'warning',
-    title: 'Perhatian',
-    text: "{{ session('error') }}",
-          confirmButtonColor: '#003d8f',
-});
-@endif
-</script>
 <script>
 $(document).ready(function() {
-    // Fungsi untuk mengatur tampilan detail lokasi
     function toggleWilayah() {
         let val = $('input[name="jnsKompetisi"]:checked').val();
-        if (val === 'P') {
-            $('#detail_lokasi').hide(); // Pakai hide() dulu untuk tes, jika aman ganti fadeOut()
-        } else {
-            $('#detail_lokasi').show();
-        }
+        $('#detail_lokasi').toggle(val !== 'P');
     }
-
-    // Jalankan saat pertama kali halaman dimuat
     toggleWilayah();
+    $('input[name="jnsKompetisi"]').on('change', toggleWilayah);
 
-    // Jalankan saat radio button diklik
-    $('input[name="jnsKompetisi"]').on('change', function() {
-        toggleWilayah();
-    });
-
-    // Mapping select kota ke hidden input
     $('#select_kota_master').on('change', function() {
         let selected = $(this).find(':selected');
         $('#input_jenis_wilayah').val(selected.data('jenis') || '');

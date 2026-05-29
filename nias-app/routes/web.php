@@ -4,67 +4,108 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NiasController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\LombaController;
+use App\Http\Controllers\LombaAuthController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserSettingController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\ResetPasswordController;
 use Illuminate\Support\Facades\Route;
 
-// ── Public ──────────────────────────────────────────────────────
-Route::get('/', fn() => redirect()->route('auth.login.show'));
+// ── Public Landing ──────────────────────────────────────────────
+Route::get('/', [WelcomeController::class, 'show'])->name('home');
 
+// ── NIAS Auth (password-based) ──────────────────────────────────
 Route::get('/login', [AuthController::class, 'showLogin'])->name('auth.login.show');
 Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('auth.register.show');
 Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
 
-// ── Forgot / Reset Password ───────────────────────────────────────
+// ── Lomba Auth (token-based, no password) ───────────────────────
+Route::get('/lomba/login', [LombaAuthController::class, 'showLogin'])->name('lomba.login');
+Route::post('/lomba/request-token', [LombaAuthController::class, 'requestToken'])->name('lomba.request-token');
+Route::get('/lomba/verify', [LombaAuthController::class, 'showVerify'])->name('lomba.verify');
+Route::post('/lomba/verify-token', [LombaAuthController::class, 'verifyToken'])->name('lomba.verify-token');
+Route::post('/lomba/resend-token', [LombaAuthController::class, 'resendToken'])->name('lomba.resend-token');
+Route::get('/lomba/register', [LombaAuthController::class, 'showRegister'])->name('lomba.register');
+Route::post('/lomba/register', [LombaAuthController::class, 'register'])->name('lomba.register.save');
+Route::post('/lomba/logout', [LombaAuthController::class, 'logout'])->name('lomba.logout');
+
+// ── Forgot / Reset Password ─────────────────────────────────────
 Route::get('/forgot-password',        [ForgotPasswordController::class, 'showForm'])->name('password.request');
 Route::post('/forgot-password',       [ForgotPasswordController::class, 'sendLink'])->name('password.send');
 Route::get('/reset-password/{token}', [ResetPasswordController::class,  'showForm'])->name('password.reset');
 Route::post('/reset-password',        [ResetPasswordController::class,  'reset'])->name('password.update');
 
-// ── Protected ────────────────────────────────────────────────────
+// ── Daftar Lomba (lomba auth OR nias auth) ──────────────────────
+Route::middleware('lomba')->group(function () {
+    Route::get('/lomba', [LombaController::class, 'index'])->name('lomba.index');
+
+    // Form A1 — Kontingen & Atlet
+    Route::get('/lomba/form-a1', [LombaController::class, 'formA1'])->name('lomba.form_a1');
+    Route::post('/lomba/form-a1', [LombaController::class, 'saveKontingen'])->name('form_a1.saveKontingen');
+    Route::get('/lomba/form-a1-atlet', [LombaController::class, 'formA1NamaAtlet'])->name('lomba.form_a1_namaatlet');
+    Route::post('/lomba/atlet', [LombaController::class, 'addAtlet'])->name('lomba.atlet.store');
+    Route::put('/lomba/atlet/{id}', [LombaController::class, 'updateAtlet'])->name('lomba.atlet.update');
+    Route::delete('/lomba/atlet/{id}', [LombaController::class, 'deleteAtlet'])->name('lomba.atlet.delete');
+    Route::get('/lomba/api/atlet', [LombaController::class, 'apiAtletList'])->name('lomba.api.atlet');
+
+    // Form A3 — Perorangan
+    Route::get('/lomba/form-a3-perorangan', [LombaController::class, 'formA3Perorangan'])->name('lomba.form_a3_perorangan');
+    Route::post('/lomba/form-a3-perorangan', [LombaController::class, 'saveA3Perorangan'])->name('lomba.save_a3_perorangan');
+    Route::delete('/lomba/a3/{id}', [LombaController::class, 'deleteA3Entry'])->name('lomba.a3.delete');
+
+    // Form A3 — Estafet
+    Route::get('/lomba/form-a3-estafet', [LombaController::class, 'formA3Estafet'])->name('lomba.form_a3_estafet');
+    Route::post('/lomba/form-a3-estafet', [LombaController::class, 'saveA3Estafet'])->name('lomba.save_a3_estafet');
+
+    // Proses Form A3
+    Route::get('/lomba/proses', [LombaController::class, 'prosesFormA3'])->name('lomba.proses');
+    Route::post('/lomba/proses', [LombaController::class, 'runProsesFormA3'])->name('lomba.run_proses');
+
+    // Hitung Biaya
+    Route::get('/lomba/biaya', [LombaController::class, 'hitungBiaya'])->name('lomba.biaya');
+    Route::post('/lomba/biaya', [LombaController::class, 'runHitungBiaya'])->name('lomba.run_biaya');
+});
+
+// ── Protected: NIAS Auth ────────────────────────────────────────
 Route::post('/logout', [AuthController::class, 'logout'])
     ->name('auth.logout')
     ->middleware('auth');
 
-// ── Halaman pilihan aplikasi ──────────────────────────────────────
 Route::middleware('auth')->group(function () {
     Route::get('/welcome', [WelcomeController::class, 'show'])->name('welcome');
     Route::post('/welcome/choice', [WelcomeController::class, 'saveChoice'])->name('welcome.saveChoice');
     Route::get('/welcome/reset', [WelcomeController::class, 'reset'])->name('welcome.reset');
-
-    // ── Setting Akun User ─────────────────────────────────────────
     Route::get('/account/setting',           [UserSettingController::class, 'index'])->name('user.setting');
     Route::post('/account/setting/password', [UserSettingController::class, 'updatePassword'])->name('user.setting.password');
 });
 
 Route::middleware('auth')->group(function () {
-
     // ── Setting (admin only) ─────────────────────────────────────
     Route::middleware(['auth', 'admin'])->group(function () {
-        // Tampilkan halaman utama settings
         Route::get('/settings', [SettingController::class, 'index'])->name('settings');
-
-        // Pastikan nama di bawah ini adalah 'settings.nias.save' agar sesuai dengan Blade
         Route::post('/settings/nias', [SettingController::class, 'saveNias'])->name('settings.nias.save');
-
-        // Sesuaikan juga yang lainnya agar konsisten
         Route::post('/settings/reset-nias-schedule', [SettingController::class, 'resetNiasSchedule'])->name('settings.nias.reset');
+        Route::post('/settings/tarif-nias',           [SettingController::class, 'saveTarifNias'])->name('settings.tarif.save');
         Route::post('/settings/users/{user}/reset-password', [SettingController::class, 'resetUserPassword'])->name('settings.resetPassword');
         Route::delete('/settings/users/{user}/delete',    [SettingController::class, 'deleteUser'])->name('settings.deleteUser');
         Route::get('/settings/akun/{user}',                [SettingController::class, 'showAkun'])->name('settings.akun.show');
         Route::delete('/settings/akun/selected',           [SettingController::class, 'destroySelectedAkun'])->name('settings.akun.destroySelected');
         Route::delete('/settings/akun/all',                [SettingController::class, 'destroyAllAkun'])->name('settings.akun.destroyAll');
+
+        // ── Lomba settings ───────────────────────────────────────
+        Route::post('/settings/lomba',           [SettingController::class, 'saveLomba'])->name('settings.lomba.save');
+        Route::post('/settings/lomba/tarif',     [SettingController::class, 'saveLombaTarif'])->name('settings.lomba.tarif.save');
+        Route::post('/settings/lomba/deposit',   [SettingController::class, 'saveLombaDeposit'])->name('settings.lomba.deposit.save');
+        Route::post('/settings/lomba/denda',     [SettingController::class, 'saveLombaDenda'])->name('settings.lomba.denda.save');
+        Route::post('/settings/lomba/biaya-extra', [SettingController::class, 'saveBiayaExtra'])->name('settings.lomba.biayaextra.save');
     });
 
-    // Club info helper
+    // ── NIAS CRUD ────────────────────────────────────────────────
     Route::get('/nias/clubinfo', function () {
         $club = request('club');
         $info = \App\Models\Nias::$clubLookup[$club] ?? null;
-        if (!$info)
-            return response()->json(['found' => false]);
+        if (!$info) return response()->json(['found' => false]);
         return response()->json([
             'found' => true,
             'kdjenis' => $info[0],
@@ -74,9 +115,7 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('nias.clubinfo');
 
-    // Export CSV
-    Route::get('/nias/export', [NiasController::class, 'export'])
-        ->name('nias.export');
+    Route::get('/nias/export', [NiasController::class, 'export'])->name('nias.export');
 
     Route::get('/nias/update-data', function () {
         if (auth()->user()->role !== 'admin' && !\App\Models\AppSetting::isNiasOpen()) {
@@ -87,11 +126,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/nias/existing', [NiasController::class, 'existing'])->name('nias.existing');
     Route::get('/nias/{id}/file/{col}', [NiasController::class, 'serveFile'])->name('nias.file');
 
-    // NIAS CRUD — explicit routes agar tidak bentrok
-    // Guard jadwal: regular user dicek apakah pendaftaran sedang dibuka
-    // Index selalu bisa diakses (admin & regular)
     Route::get('/nias', [NiasController::class, 'index'])->name('nias.index');
-
     Route::get('/nias/create', function () {
         if (auth()->user()->role !== 'admin' && !\App\Models\AppSetting::isNiasOpen()) {
             return redirect()->route('nias.index')->with('nias_closed', true);
@@ -108,18 +143,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/nias-sent-selected',[NiasController::class, 'destroySentSelected'])->name('nias.destroy-sent-selected');
     Route::delete('/nias-sent-all',     [NiasController::class, 'destroySentAll'])->name('nias.destroy-sent-all');
     Route::post('/nias/send-email', [NiasController::class, 'sendEmail'])->name('nias.send-email');
-    Route::post('/nias/{id}/acc',   [NiasController::class, 'acc'])->name('nias.acc');
-    Route::post('/nias/{id}/reject',[NiasController::class, 'reject'])->name('nias.reject');
-
-    // Daftar Lomba
-    Route::get('/lomba', function () {
-        return view('lomba.index'); // Sesuaikan dengan lokasi file view Anda
-    })->name('lomba.index');
-    // Form A1
-    Route::get('/lomba/form-a1', [LombaController::class, 'formA1'])->name('lomba.form_a1');
-    Route::post('/lomba/form-a1', [LombaController::class, 'saveKontingen'])->name('form_a1.saveKontingen');
-
-    // Tab 2: Form Nama Atlet (Tambahkan baris ini)
-    Route::get('/lomba/form-a1-atlet', [LombaController::class, 'formA1NamaAtlet'])->name('lomba.form_a1_namaatlet');
-
+    Route::post('/nias/{id}/acc',         [NiasController::class, 'acc'])->name('nias.acc');
+    Route::post('/nias/{id}/reject',      [NiasController::class, 'reject'])->name('nias.reject');
+    Route::post('/nias/bukti-transfer',   [NiasController::class, 'uploadBuktiTransfer'])->name('nias.bukti-transfer');
+    Route::get('/nias/bukti-transfer/{userId}', [NiasController::class, 'serveBuktiTransfer'])->name('nias.serve-bukti');
 });

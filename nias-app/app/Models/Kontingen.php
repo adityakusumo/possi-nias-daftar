@@ -8,6 +8,7 @@ class Kontingen extends Model
 {
     protected $fillable = [
         'user_id',
+        'lomba_user_id',
         'jns_kompetisi',
         'nama_kontingen',
         'jenis_wilayah',

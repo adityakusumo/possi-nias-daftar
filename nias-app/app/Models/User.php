@@ -18,6 +18,7 @@ class User extends Authenticatable
         'role',
         'email',
         'password',
+        'bukti_transfer_path',
     ];
 
     protected $hidden = [

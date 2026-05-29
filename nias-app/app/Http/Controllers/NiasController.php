@@ -69,7 +69,10 @@ class NiasController extends Controller
         $totalUpdate = (clone $baseQuery)->where('is_update', true)->count();
 
         $isNiasOpen = \App\Models\AppSetting::isNiasOpen();
-        return view('nias.index', compact('records', 'sentRecords', 'totalSemua', 'totalBaru', 'totalUpdate', 'isNiasOpen'));
+        $tarifNias  = \App\Models\MstTarifNias::getAllTarif();
+        $buktiPath  = $user->bukti_transfer_path ?? null;
+        $hasBukti   = $buktiPath && Storage::disk('local')->exists($buktiPath);
+        return view('nias.index', compact('records', 'sentRecords', 'totalSemua', 'totalBaru', 'totalUpdate', 'isNiasOpen', 'tarifNias', 'hasBukti'));
     }
 
     // -------------------------------------------------------------------------
@@ -502,9 +505,15 @@ class NiasController extends Controller
     // -------------------------------------------------------------------------
     public function export()
     {
+        // Hanya data BELUM dikirim
         $allRecords = Nias::where('user_id', Auth::id())
+            ->where('is_sent', false)
             ->orderBy('NAMA')
             ->get();
+
+        if ($allRecords->isEmpty()) {
+            return back()->with('error', 'Tidak ada data yang belum dikirim untuk diekspor.');
+        }
 
         $clubSlug = preg_replace('/[^A-Za-z0-9_]/', '_', Auth::user()->namaclub);
         $timestamp = now()->format('Ymd_His');
@@ -639,8 +648,11 @@ class NiasController extends Controller
             return back()->with('error', 'Tidak ada data baru untuk dikirim.');
         }
 
-        // Mengambil semua records milik user untuk disertakan dalam file ZIP (Baru + Update)
-        $allRecords = Nias::where('user_id', $user->id)->orderBy('NAMA')->get();
+        // Hanya data belum dikirim untuk ZIP & CSV
+        $allRecords = Nias::where('user_id', $user->id)
+            ->where('is_sent', false)
+            ->orderBy('NAMA')
+            ->get();
 
         if ($allRecords->isEmpty()) {
             return redirect()->route('nias.index')->with('error', 'Tidak ada data untuk dikirim.');
@@ -745,6 +757,13 @@ class NiasController extends Controller
                 $namaFile = $label . '_' . preg_replace('/[^A-Za-z0-9_\-]/', '_', $r->NAMA) . '.' . $ext;
                 $zip->addFile($storagePath, 'dokumen/' . $folderAtlet . '/' . $namaFile);
             }
+        }
+
+        // Sertakan bukti transfer jika ada
+        $buktPath = $user->bukti_transfer_path ?? null;
+        if ($buktPath && Storage::disk('local')->exists($buktPath)) {
+            $buktExt = pathinfo(Storage::disk('local')->path($buktPath), PATHINFO_EXTENSION);
+            $zip->addFile(Storage::disk('local')->path($buktPath), "BuktiTransfer_{$clubSlug}.{$buktExt}");
         }
 
         $zip->close();
@@ -894,5 +913,50 @@ class NiasController extends Controller
             'existingNiasMyClub',
             'existingNamesMyClub'
         ));
+    }
+
+    // -------------------------------------------------------------------------
+    // UPLOAD BUKTI TRANSFER
+    // -------------------------------------------------------------------------
+    public function uploadBuktiTransfer(\Illuminate\Http\Request $request)
+    {
+        $request->validate([
+            'bukti_transfer' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ], [
+            'bukti_transfer.required' => 'File bukti transfer wajib dipilih.',
+            'bukti_transfer.mimes'    => 'Format file harus PDF, JPG, atau PNG.',
+            'bukti_transfer.max'      => 'Ukuran file maksimal 5MB.',
+        ]);
+
+        $user     = Auth::user();
+        $namaSlug = preg_replace('/[^A-Za-z0-9_]/', '_', strtoupper($user->nama));
+        $ts       = now()->format('Ymd_Hi');
+        $ext      = $request->file('bukti_transfer')->getClientOriginalExtension();
+        $filename = "{$namaSlug}_{$ts}.{$ext}";
+
+        // Hapus file lama jika ada
+        if ($user->bukti_transfer_path && Storage::disk('local')->exists($user->bukti_transfer_path)) {
+            Storage::disk('local')->delete($user->bukti_transfer_path);
+        }
+
+        $path = $request->file('bukti_transfer')->storeAs('bukti_transfer', $filename, 'local');
+        $user->update(['bukti_transfer_path' => $path]);
+
+        return redirect()->route('nias.index')->with('success', 'Bukti transfer berhasil diupload.');
+    }
+
+    // ── Serve bukti transfer untuk preview ───────────────────────
+    public function serveBuktiTransfer($userId)
+    {
+        if (Auth::user()->role !== 'admin' && Auth::id() != $userId) abort(403);
+
+        $targetUser = \App\Models\User::findOrFail($userId);
+        $path       = $targetUser->bukti_transfer_path;
+
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            abort(404, 'File bukti transfer tidak ditemukan.');
+        }
+
+        return response()->file(Storage::disk('local')->path($path));
     }
 }

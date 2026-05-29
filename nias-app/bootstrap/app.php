@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
+            'lomba' => \App\Http\Middleware\AuthenticateLomba::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -171,6 +171,8 @@
 
             <div class="collapse navbar-collapse" id="navMain">
                 <ul class="navbar-nav me-auto gap-1">
+
+                    {{-- ── NIAS Navigation ── --}}
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('nias.index') ? 'active fw-semibold' : '' }}"
                             href="{{ route('nias.index') }}">
@@ -183,6 +185,32 @@
                             <i class="bi bi-person-plus me-1"></i>Daftar Atlet Baru
                         </a>
                     </li>
+
+                    {{-- Kembali ke Daftar NIAS — muncul di subpage NIAS --}}
+                    @if(request()->routeIs('nias.create', 'nias.edit', 'nias.show', 'nias.update-data', 'nias.existing'))
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold text-warning" href="{{ route('nias.index') }}">
+                            <i class="bi bi-arrow-left me-1"></i>Kembali
+                        </a>
+                    </li>
+                    @endif
+
+                    {{-- ── Lomba Navigation ── --}}
+                    @if(request()->routeIs('lomba.*'))
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('lomba.index') ? 'active fw-semibold' : '' }}"
+                            href="{{ route('lomba.index') }}">
+                            <i class="bi bi-trophy me-1"></i>Beranda Lomba
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('lomba.form_a1', 'lomba.form_a1_namaatlet') ? 'active fw-semibold' : '' }}"
+                            href="{{ route('lomba.form_a1') }}">
+                            <i class="bi bi-pencil-square me-1"></i>Isi Data Lomba
+                        </a>
+                    </li>
+                    @endif
+
                 </ul>
 
                 {{-- User info + logout --}}

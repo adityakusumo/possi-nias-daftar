@@ -127,6 +127,41 @@
                                 </button>
                             </div>
                         </form>
+
+                    {{-- Form Tarif NIAS (sibling, BUKAN nested) --}}
+                    <form action="{{ route('settings.tarif.save') }}" method="POST">
+                        @csrf
+                        <div class="card border shadow-sm mb-4">
+                            <div class="card-header bg-light fw-bold">
+                                <i class="bi bi-cash-coin me-2"></i>Tarif Pendaftaran NIAS
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold">Biaya Pendaftaran Baru</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">Rp</span>
+                                            <input type="number" name="biaya_baru" class="form-control"
+                                                   value="{{ $tarifNias['baru'] ?? 60000 }}" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold">Biaya Update / Perpanjang</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">Rp</span>
+                                            <input type="number" name="biaya_update" class="form-control"
+                                                   value="{{ $tarifNias['update'] ?? 30000 }}" min="0">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-primary w-100">
+                                            <i class="bi bi-save me-1"></i>Simpan Tarif
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
                     </div>
 
                     {{-- Form tersembunyi untuk Reset Jadwal --}}
@@ -135,9 +170,227 @@
                     </form>
                 @endif
 
-                {{-- KONTEN TAB 2: LOMBA (Manajemen User) --}}
+                {{-- KONTEN TAB 2: LOMBA (Setting + Manajemen User) --}}
                 @if(request('tab') === 'lomba')
                     <div class="tab-content-area">
+
+                        {{-- 1. Jenis Kompetisi --}}
+                        <form action="{{ route('settings.lomba.save') }}" method="POST" class="mb-4">
+                            @csrf
+                            <div class="card border shadow-sm">
+                                <div class="card-header bg-light fw-bold">
+                                    <i class="bi bi-trophy me-2"></i>Jenis Kompetisi
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-bold">Jenis Kompetisi</label>
+                                            <select name="jns_kompetisi" class="form-select" required>
+                                                <option value="K" {{ ($kompetisi->JNSKOMPETISI ?? 'K') == 'K' ? 'selected' : '' }}>Kabupaten / Kota</option>
+                                                <option value="P" {{ ($kompetisi->JNSKOMPETISI ?? '') == 'P' ? 'selected' : '' }}>Provinsi</option>
+                                                <option value="C" {{ ($kompetisi->JNSKOMPETISI ?? '') == 'C' ? 'selected' : '' }}>Club</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-bold">Keterangan</label>
+                                            <input type="text" name="ket_kompetisi" class="form-control"
+                                                   value="{{ $kompetisi->KETKOMPETISI ?? 'ANTAR KOTA' }}">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label small fw-bold">Wajib NIAS</label>
+                                            <select name="wajib_nias" class="form-select">
+                                                <option value="0" {{ optional($kompetisi)->WAJIBNIAS == '0' ? 'selected' : '' }}>Tidak</option>
+                                                <option value="1" {{ optional($kompetisi)->WAJIBNIAS == '1' ? 'selected' : '' }}>Ya</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button type="submit" class="btn btn-primary w-100">
+                                                <i class="bi bi-save me-1"></i>Simpan
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+
+                        {{-- 2. Tarif Daftar Lomba --}}
+                        <form action="{{ route('settings.lomba.tarif.save') }}" method="POST" class="mb-4">
+                            @csrf
+                            <div class="card border shadow-sm">
+                                <div class="card-header bg-light fw-bold">
+                                    <i class="bi bi-cash-coin me-2"></i>Tarif Daftar Lomba
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-bold">Perorangan (per nomor)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">Rp</span>
+                                                <input type="number" name="tarif_perorangan" class="form-control"
+                                                       value="{{ $lombaTarifPerorangan }}" min="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-bold">Estafet (per nomor)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">Rp</span>
+                                                <input type="number" name="tarif_estafet" class="form-control"
+                                                       value="{{ $lombaTarifEstafet }}" min="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 d-flex align-items-end">
+                                            <button type="submit" class="btn btn-primary w-100">
+                                                <i class="bi bi-save me-1"></i>Simpan Tarif
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+
+                        {{-- 3. Deposit --}}
+                        <form action="{{ route('settings.lomba.deposit.save') }}" method="POST" class="mb-4">
+                            @csrf
+                            <div class="card border shadow-sm">
+                                <div class="card-header bg-light fw-bold">
+                                    <i class="bi bi-piggy-bank me-2"></i>Deposit (per Range Atlet)
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered" id="depositTable">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th style="width:40px">#</th>
+                                                    <th>Jml Atlet Mulai</th>
+                                                    <th>Jml Atlet Sampai</th>
+                                                    <th>Rp Deposit</th>
+                                                    <th style="width:50px"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($depositRanges as $i => $d)
+                                                <tr>
+                                                    <td class="text-muted small">{{ $loop->iteration }}</td>
+                                                    <td><input type="number" name="deposit[{{ $i }}][mulai]" class="form-control form-control-sm" value="{{ $d->JMLATLETMULAI }}" min="1" required></td>
+                                                    <td><input type="number" name="deposit[{{ $i }}][sampai]" class="form-control form-control-sm" value="{{ $d->JMLATLETSAMPAI }}" min="1" required></td>
+                                                    <td><input type="number" name="deposit[{{ $i }}][rp]" class="form-control form-control-sm" value="{{ $d->RPDEPOSIT }}" min="0" required></td>
+                                                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>
+                                                </tr>
+                                                @empty
+                                                <tr>
+                                                    <td class="text-muted small">1</td>
+                                                    <td><input type="number" name="deposit[0][mulai]" class="form-control form-control-sm" value="1" min="1" required></td>
+                                                    <td><input type="number" name="deposit[0][sampai]" class="form-control form-control-sm" value="10" min="1" required></td>
+                                                    <td><input type="number" name="deposit[0][rp]" class="form-control form-control-sm" value="500000" min="0" required></td>
+                                                    <td></td>
+                                                </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addDepositRow()">
+                                        <i class="bi bi-plus me-1"></i>Tambah Range
+                                    </button>
+                                    <button type="submit" class="btn btn-primary ms-2">
+                                        <i class="bi bi-save me-1"></i>Simpan Deposit
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        {{-- 4. Denda --}}
+                        <form action="{{ route('settings.lomba.denda.save') }}" method="POST" class="mb-4">
+                            @csrf
+                            <div class="card border shadow-sm">
+                                <div class="card-header bg-light fw-bold">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>Denda
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-bold">RPDENDAOL (Over Limit)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">Rp</span>
+                                                <input type="number" name="rpdendaol" class="form-control"
+                                                       value="{{ $dendaData->RPDENDAOL ?? 0 }}" min="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-bold">RPDENDADQ (DQ)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">Rp</span>
+                                                <input type="number" name="rpdendadq" class="form-control"
+                                                       value="{{ $dendaData->RPDENDADQ ?? 0 }}" min="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-bold">RPDENDANOSWIM (No Swim)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">Rp</span>
+                                                <input type="number" name="rpdendanoswim" class="form-control"
+                                                       value="{{ $dendaData->RPDENDANOSWIM ?? 0 }}" min="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-save me-1"></i>Simpan Denda
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+
+                        {{-- 5. Biaya Lain-lain --}}
+                        <form action="{{ route('settings.lomba.biayaextra.save') }}" method="POST" class="mb-4">
+                            @csrf
+                            <div class="card border shadow-sm">
+                                <div class="card-header bg-light fw-bold">
+                                    <i class="bi bi-plus-circle me-2"></i>Biaya Lain-lain
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered" id="biayaExtraTable">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th style="width:40px">#</th>
+                                                    <th>Keterangan</th>
+                                                    <th>Rp Biaya</th>
+                                                    <th style="width:50px"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @forelse($biayaExtraList as $i => $be)
+                                                <tr>
+                                                    <td class="text-muted small">{{ $loop->iteration }}</td>
+                                                    <td><input type="text" name="biaya_extra[{{ $i }}][keterangan]" class="form-control form-control-sm" value="{{ $be->KETERANGAN }}" required></td>
+                                                    <td><input type="number" name="biaya_extra[{{ $i }}][rp]" class="form-control form-control-sm" value="{{ $be->RPBIAYAEXTRA }}" min="0" required></td>
+                                                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>
+                                                </tr>
+                                                @empty
+                                                <tr>
+                                                    <td class="text-muted small">1</td>
+                                                    <td><input type="text" name="biaya_extra[0][keterangan]" class="form-control form-control-sm" placeholder="Mis: Biaya administrasi" required></td>
+                                                    <td><input type="number" name="biaya_extra[0][rp]" class="form-control form-control-sm" value="0" min="0" required></td>
+                                                    <td></td>
+                                                </tr>
+                                                @endforelse
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addBiayaExtraRow()">
+                                        <i class="bi bi-plus me-1"></i>Tambah Biaya
+                                    </button>
+                                    <button type="submit" class="btn btn-primary ms-2">
+                                        <i class="bi bi-save me-1"></i>Simpan Biaya Lain-lain
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <hr>
+
+                        {{-- 6. Manajemen User (existing) --}}
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="fw-bold mb-0">Manajemen Akun Pelatih / Lomba</h6>
                             <form action="{{ route('settings') }}" method="GET" class="d-flex">
@@ -147,8 +400,6 @@
                                 <button type="submit" class="btn btn-sm btn-dark">Cari</button>
                             </form>
                         </div>
-
-                        {{-- Tabel daftar user/atlet yang sudah ada di file lama Anda --}}
                         <div class="table-responsive">
                             <table class="table table-sm table-hover border">
                                 <thead class="table-light">
@@ -166,7 +417,6 @@
                                             <td>{{ $user->namaclub }}</td>
                                             <td><span class="badge bg-secondary">{{ $user->role }}</span></td>
                                             <td>
-                                                {{-- Tombol Reset Password & Delete --}}
                                                 <button onclick="confirmReset('{{ $user->id }}')"
                                                     class="btn btn-xs btn-warning">Reset</button>
                                             </td>
@@ -177,6 +427,37 @@
                             {{ $users->links() }}
                         </div>
                     </div>
+
+                    <script>
+                    let depositIdx = {{ count($depositRanges) > 0 ? count($depositRanges) : 1 }};
+                    function addDepositRow() {
+                        const tbody = document.querySelector('#depositTable tbody');
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="text-muted small">${depositIdx + 1}</td>
+                            <td><input type="number" name="deposit[${depositIdx}][mulai]" class="form-control form-control-sm" min="1" required></td>
+                            <td><input type="number" name="deposit[${depositIdx}][sampai]" class="form-control form-control-sm" min="1" required></td>
+                            <td><input type="number" name="deposit[${depositIdx}][rp]" class="form-control form-control-sm" min="0" required></td>
+                            <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>
+                        `;
+                        tbody.appendChild(tr);
+                        depositIdx++;
+                    }
+
+                    let biayaExtraIdx = {{ count($biayaExtraList) > 0 ? count($biayaExtraList) : 1 }};
+                    function addBiayaExtraRow() {
+                        const tbody = document.querySelector('#biayaExtraTable tbody');
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="text-muted small">${biayaExtraIdx + 1}</td>
+                            <td><input type="text" name="biaya_extra[${biayaExtraIdx}][keterangan]" class="form-control form-control-sm" placeholder="Keterangan" required></td>
+                            <td><input type="number" name="biaya_extra[${biayaExtraIdx}][rp]" class="form-control form-control-sm" value="0" min="0" required></td>
+                            <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()"><i class="bi bi-x"></i></button></td>
+                        `;
+                        tbody.appendChild(tr);
+                        biayaExtraIdx++;
+                    }
+                    </script>
                 @endif
 
                 {{-- KONTEN TAB 3: MANAJEMEN AKUN --}}

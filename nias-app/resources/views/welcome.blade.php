@@ -196,57 +196,80 @@
         <p>Sistem Informasi Finswimming</p>
     </div>
 
+    @auth
     <div class="user-info">
         Selamat datang, <span class="name-badge">
             <i class="bi bi-person-circle me-1"></i>
             {{ Auth::user()->nama }}
         </span>
     </div>
+    @endauth
 
     <div class="d-flex flex-wrap gap-4 justify-content-center px-3">
 
-        @php $isNiasOpen = \App\Models\AppSetting::isNiasOpen(); @endphp
+        @auth
+            {{-- === AUTHENTICATED: NIAS Portal Cards === --}}
+            @php $isNiasOpen = \App\Models\AppSetting::isNiasOpen(); @endphp
 
-        {{-- Kartu NIAS --}}
-        <a href="{{ route('nias.index') }}" class="app-card" onclick="saveChoice('nias')">
-            <div class="icon-wrap" style="background:#e3f2fd;color:#0d6efd;">
-                <i class="bi bi-person-vcard"></i>
-            </div>
-            <div class="app-info">
-                <h3>Pendaftaran NIAS</h3>
-                <p>
-                    @if($isNiasOpen)
-                        Pendaftaran sedang <span class="text-success fw-semibold">dibuka</span>.
-                    @else
-                        Pendaftaran sedang <span class="text-danger fw-semibold">ditutup</span>.
-                    @endif
-                </p>
-            </div>
-        </a>
-
-        {{-- Kartu Daftar Lomba --}}
-        <a href="{{ route('lomba.index') }}" class="app-card" onclick="saveChoice('lomba')">
-            <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
-                <i class="bi bi-trophy"></i>
-            </div>
-            <div class="app-info">
-                <h3>Pendaftaran Lomba</h3>
-                <p>Daftarkan kontingen dan atlet untuk kompetisi.</p>
-            </div>
-        </a>
-
-        {{-- Kartu Admin Setting --}}
-        @if(Auth::user()->role === 'admin')
-            <a href="{{ route('settings') }}" class="app-card">
-                <div class="icon-wrap" style="background:#f3e5f5;color:#6a1b9a;">
-                    <i class="bi bi-gear-fill"></i>
+            <a href="{{ route('nias.index') }}" class="app-card" onclick="saveChoice('nias')">
+                <div class="icon-wrap" style="background:#e3f2fd;color:#0d6efd;">
+                    <i class="bi bi-person-vcard"></i>
                 </div>
                 <div class="app-info">
-                    <h3>Pengaturan Sistem</h3>
-                    <p>Panel Kontrol Admin (NIAS & Lomba)</p>
+                    <h3>Pendaftaran NIAS</h3>
+                    <p>
+                        @if($isNiasOpen)
+                            Pendaftaran sedang <span class="text-success fw-semibold">dibuka</span>.
+                        @else
+                            Pendaftaran sedang <span class="text-danger fw-semibold">ditutup</span>.
+                        @endif
+                    </p>
                 </div>
             </a>
-        @endif
+
+            <a href="{{ route('lomba.index') }}" class="app-card" onclick="saveChoice('lomba')">
+                <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
+                    <i class="bi bi-trophy"></i>
+                </div>
+                <div class="app-info">
+                    <h3>Pendaftaran Lomba</h3>
+                    <p>Daftarkan kontingen dan atlet untuk kompetisi.</p>
+                </div>
+            </a>
+
+            @if(Auth::user()->role === 'admin')
+                <a href="{{ route('settings') }}" class="app-card">
+                    <div class="icon-wrap" style="background:#f3e5f5;color:#6a1b9a;">
+                        <i class="bi bi-gear-fill"></i>
+                    </div>
+                    <div class="app-info">
+                        <h3>Pengaturan Sistem</h3>
+                        <p>Panel Kontrol Admin (NIAS & Lomba)</p>
+                    </div>
+                </a>
+            @endif
+        @else
+            {{-- === GUEST: Login Choice Cards === --}}
+            <a href="{{ route('auth.login.show') }}" class="app-card">
+                <div class="icon-wrap" style="background:#e3f2fd;color:#0d6efd;">
+                    <i class="bi bi-person-vcard"></i>
+                </div>
+                <div class="app-info">
+                    <h3>Daftar NIAS</h3>
+                    <p>Login atau daftar akun untuk pendaftaran NIAS atlet finswimming.</p>
+                </div>
+            </a>
+
+            <a href="{{ route('lomba.login') }}" class="app-card">
+                <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
+                    <i class="bi bi-trophy"></i>
+                </div>
+                <div class="app-info">
+                    <h3>Daftar Lomba</h3>
+                    <p>Login dengan token email untuk mendaftarkan kontingen lomba.</p>
+                </div>
+            </a>
+        @endauth
     </div>
 
 

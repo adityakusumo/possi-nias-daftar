@@ -132,11 +132,19 @@
                     {{-- Domisili KK — hanya tampil saat update_domisili / update_all --}}
                     <div class="col-12" id="wrapper_domisili" style="display:none;">
                         <div class="row g-3">
-                            {{-- JENISDOM disimpan via hidden input, diisi otomatis JS dari pilihan kota/kab --}}
-                            <input type="hidden" name="JENISDOM" id="JENISDOM" value="{{ old('JENISDOM') }}">
-                            <div class="col-md-12">
+                            <div class="col-md-4">
+                                <label class="form-label" id="label_jenisdom">
+                                    Jenis Wilayah (KK) <span class="text-danger">*</span>
+                                </label>
+                                <select name="JENISDOM" id="JENISDOM" class="form-select">
+                                    <option value="">— Pilih Jenis —</option>
+                                    <option value="KOTA" {{ old('JENISDOM') === 'KOTA' ? 'selected' : '' }}>KOTA</option>
+                                    <option value="KAB" {{ old('JENISDOM') === 'KAB' ? 'selected' : '' }}>KABUPATEN</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
                                 <label class="form-label" id="label_kotadom">
-                                    Nama Kota/Kab (KK Terbaru) <span class="text-danger">*</span>
+                                    Nama Kota/Kab (KK) <span class="text-danger">*</span>
                                 </label>
                                 <select name="NAMAKOTADOM" id="NAMAKOTADOM" class="form-select select2">
                                     <option value="">— Pilih Kota/Kab —</option>
@@ -146,9 +154,6 @@
                                         </option>
                                     @endforeach
                                 </select>
-                                <div class="form-text text-muted">
-                                    Pilih nama kota/kab sesuai KK terbaru. Contoh: pilih "KAB KEDIRI" maka sistem akan menyimpan Jenis=KAB, Nama=KEDIRI.
-                                </div>
                             </div>
                             {{-- Radio: Mutasi dari luar Jatim --}}
                             <div class="col-12" id="wrapper_mutasi_luar_jatim">
@@ -224,7 +229,7 @@
                         <i class="bi bi-x-circle me-1"></i>Batal
                     </a>
                     <button type="submit" id="btn_submit" class="btn btn-primary px-4">
-                        <i class="bi bi-save me-1"></i>Simpan Update
+                        <i class="bi bi-arrow-repeat me-1"></i>Proses Update
                     </button>
                 </div>
             </form>
@@ -267,24 +272,6 @@
                     matcher: makeNoniasMatcher(filterByClub),
                 });
                 bindNoniasChange();
-
-            // ── Auto-populate JENISDOM dari pilihan NAMAKOTADOM ──────
-            // Format value domisili: "KOTA MALANG", "KAB KEDIRI", dst
-            // Prefix 1 kata pertama = jenis, sisanya = nama kota
-            $('#NAMAKOTADOM').on('change', function () {
-                const val = $(this).val() || '';
-                const parts = val.trim().split(/\s+/);
-                const prefix = parts[0].toUpperCase(); // KOTA atau KAB
-                if (prefix === 'KOTA' || prefix === 'KAB' || prefix === 'KABUPATEN') {
-                    const jenis = (prefix === 'KAB' || prefix === 'KABUPATEN') ? 'KAB' : 'KOTA';
-                    $('#JENISDOM').val(jenis);
-                } else {
-                    // Tidak ada prefix → kosongkan jenis
-                    $('#JENISDOM').val('');
-                }
-            });
-            // Trigger saat load (jika ada old value)
-            $('#NAMAKOTADOM').trigger('change');
             }
 
             function initNamaSelect2(filterByClub) {
@@ -376,8 +363,9 @@
                 $('#wrapper_file_sk_mutasi').toggle(clubRequired);
                 $('#file_sk_mutasi').prop('required', clubRequired).val('');
 
-                // Update label kotadom
+                // Update label domisili — tambahkan "(KK Terbaru)" saat domisili dipindah
                 const domisiliSuffix = domisiliRequired ? ' (KK Terbaru)' : ' (KK)';
+                $('#label_jenisdom').html('Jenis Wilayah' + domisiliSuffix + ' <span class="text-danger">*</span>');
                 $('#label_kotadom').html('Nama Kota/Kab' + domisiliSuffix + ' <span class="text-danger">*</span>');
             }
 

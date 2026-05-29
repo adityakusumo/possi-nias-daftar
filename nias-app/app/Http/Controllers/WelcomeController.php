@@ -14,6 +14,11 @@ class WelcomeController extends Controller
     {
         $user = Auth::user();
 
+        // Guest: just show the welcome page directly (login choice cards)
+        if (!$user) {
+            return view('welcome');
+        }
+
         // Admin: jika sudah punya pilihan terakhir di session → langsung redirect
         if ($user->role === 'admin' && session()->has('last_app')) {
             $lastApp = session('last_app');
