@@ -68,7 +68,34 @@ sudo mysql_secure_installation
 
 > **📌 Catatan:** `mysql_secure_installation` akan memandu kamu mengamankan instalasi MariaDB — set root password, hapus anonymous user, nonaktifkan remote root login, dan hapus database test. Ikuti promptnya sesuai kebutuhan.
 
-### 1.5 Install Composer
+### 1.5 Install PHP 8.4
+
+Ubuntu 24.04 secara default menyediakan PHP 8.3 dari repository resmi. Untuk mendapatkan PHP 8.4, tambahkan PPA `ondrej/php` terlebih dahulu:
+
+```bash
+sudo apt install software-properties-common -y
+sudo add-apt-repository ppa:ondrej/php -y
+sudo apt update
+```
+
+Kemudian install PHP 8.4 beserta ekstensi yang dibutuhkan Laravel:
+
+```bash
+sudo apt install php8.4 php8.4-fpm php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-gd php8.4-intl php8.4-bcmath -y
+```
+
+> **📌 Catatan:** Ekstensi `php8.4-mysql` diperlukan untuk koneksi MariaDB, sedangkan `php8.4-mbstring`, `php8.4-xml`, `php8.4-curl`, `php8.4-zip`, `php8.4-gd`, `php8.4-intl`, dan `php8.4-bcmath` adalah ekstensi standar yang dibutuhkan Laravel.
+
+Verifikasi instalasi:
+
+```bash
+php -v
+sudo systemctl status php8.4-fpm
+```
+
+> **✅ Tip:** Pastikan output `php -v` menampilkan versi `8.4.x` dan status `php8.4-fpm` aktif (`active (running)`). Jika ada beberapa versi PHP terinstall, set `php8.4` sebagai versi default dengan: `sudo update-alternatives --set php /usr/bin/php8.4`
+
+### 1.6 Install Composer
 
 ```bash
 curl -sS https://getcomposer.org/installer | php
