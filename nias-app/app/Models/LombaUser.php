@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Hash;
 
 class LombaUser extends Model
 {
@@ -12,7 +13,31 @@ class LombaUser extends Model
         'email',
         'nama',
         'no_wa',
+        'password',
     ];
+
+    protected $hidden = [
+        'password',
+    ];
+
+    // ── Auto-hash password when set ──────────────────────────────
+    public function setPasswordAttribute($value)
+    {
+        $this->attributes['password'] = $value ? Hash::make($value) : null;
+    }
+
+    // ── Check if user has already set a password ─────────────────
+    public function isRegistered(): bool
+    {
+        return !is_null($this->password);
+    }
+
+    // ── Verify password ──────────────────────────────────────────
+    public function verifyPassword(string $plain): bool
+    {
+        if (!$this->password) return false;
+        return Hash::check($plain, $this->password);
+    }
 
     public function kontingen()
     {

@@ -159,7 +159,22 @@ class LombaController extends Controller
         $kontingen = Kontingen::where($resolved['id_col'], $resolved['user_id'])->first();
         $listKota = \App\Models\MstKota::orderBy('NAMAKOTA', 'asc')->get();
         $isKontingenSaved = $kontingen ? true : false;
-        return view('lomba.form_a1_kontingen', compact('kontingen', 'listKota', 'isKontingenSaved'));
+
+        // Club → JENIS|NAMAKOTA lookup for antar-club auto-fill
+        $clubLookup = DB::table('NIAS')
+            ->whereNotNull('NAMACLUB')
+            ->where('NAMACLUB', '!=', '')
+            ->select('NAMACLUB', 'JENIS', 'NAMAKOTA')
+            ->distinct()
+            ->get()
+            ->groupBy('NAMACLUB')
+            ->map(function ($rows) {
+                // Take first match per club
+                $r = $rows->first();
+                return strtoupper(trim($r->JENIS)) . '|' . strtoupper(trim($r->NAMAKOTA));
+            });
+
+        return view('lomba.form_a1_kontingen', compact('kontingen', 'listKota', 'isKontingenSaved', 'clubLookup'));
     }
 
     // ── Form Nama Atlet ───────────────────────────────────────────
@@ -177,7 +192,38 @@ class LombaController extends Controller
         $atletList = PesertaAtlet::where('ASAL', $asal)->orderBy('NAMAATLET', 'asc')->get();
         $kuList = MstKu::all();
         $kompetisi = Kompetisi::first();
-        return view('lomba.form_a1_namaatlet', compact('kontingen', 'atletList', 'kuList', 'kompetisi'));
+
+        // NIAS athletes filtered by kompetisi type (including expired, for table display)
+        $niasQuery = DB::table('NIAS')
+            ->whereNotNull('NAMA')
+            ->where('NAMA', '!=', '')
+            ->select('NAMA', 'GENDER', 'TGLLAHIR', 'NONIAS', 'EXPIRED', 'NAMACLUB', 'JENISDOM', 'NAMAKOTADOM', 'NAMAPROPDOM');
+
+        if ($kontingen->jns_kompetisi === 'C') {
+            $niasQuery->whereRaw('UPPER(TRIM(NAMACLUB)) = ?', [strtoupper(trim($kontingen->nama_kontingen))]);
+        } elseif ($kontingen->jns_kompetisi === 'K') {
+            $niasQuery->whereRaw('UPPER(TRIM(JENISDOM)) = ?', [strtoupper(trim($kontingen->jenis_wilayah))])
+                      ->whereRaw('UPPER(TRIM(NAMAKOTADOM)) = ?', [strtoupper(trim($kontingen->nama_wilayah))]);
+        } elseif ($kontingen->jns_kompetisi === 'P') {
+            $niasQuery->whereRaw('UPPER(TRIM(NAMAPROPDOM)) = ?', [strtoupper(trim($kontingen->provinsi))]);
+        }
+
+        $allNiasAtlets = $niasQuery->distinct()
+            ->orderBy('NAMA')
+            ->get()
+            ->unique('NAMA')
+            ->values()
+            ->map(function ($a) {
+                $a->is_expired = $a->EXPIRED
+                    && $a->EXPIRED !== '0000-00-00'
+                    && \Carbon\Carbon::parse($a->EXPIRED)->isBefore(now()->startOfDay());
+                return $a;
+            });
+
+        // Datalist: only active (non-expired) athletes
+        $niasAtlets = $allNiasAtlets->reject(fn($a) => $a->is_expired);
+
+        return view('lomba.form_a1_namaatlet', compact('kontingen', 'atletList', 'kuList', 'kompetisi', 'niasAtlets', 'allNiasAtlets'));
     }
 
     // ── Save Kontingen ────────────────────────────────────────────

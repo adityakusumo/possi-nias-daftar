@@ -72,7 +72,49 @@ class NiasController extends Controller
         $tarifNias  = \App\Models\MstTarifNias::getAllTarif();
         $buktiPath  = $user->bukti_transfer_path ?? null;
         $hasBukti   = $buktiPath && Storage::disk('local')->exists($buktiPath);
-        return view('nias.index', compact('records', 'sentRecords', 'totalSemua', 'totalBaru', 'totalUpdate', 'isNiasOpen', 'tarifNias', 'hasBukti'));
+
+        // ── Data untuk tab Daftar NIAS Baru (create form) ─────────
+        $domisilis = array_keys(Nias::$domisiliLookup);
+        sort($domisilis);
+        $userClub = $user->namaclub;
+        $allClubs = [];
+        if ($user->role === 'admin') {
+            $allClubs = array_keys(Nias::$clubLookup);
+            sort($allClubs);
+        }
+
+        // ── Data untuk tab Update NIAS (update form) ──────────────
+        $userRole   = $user->role;
+        $expiredDate = now()->day(28)->addMonth()->addYears(2);
+
+        $existingNias = NiasExisting::whereNotNull('NONIAS')
+            ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB')
+            ->orderBy('NAMA')
+            ->get();
+
+        $existingNames = NiasExisting::distinct()
+            ->orderBy('NAMA')
+            ->pluck('NAMA')
+            ->toArray();
+
+        $existingNiasMyClub = NiasExisting::whereNotNull('NONIAS')
+            ->where('NAMACLUB', $userClub)
+            ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB')
+            ->orderBy('NAMA')
+            ->get();
+
+        $existingNamesMyClub = NiasExisting::distinct()
+            ->where('NAMACLUB', $userClub)
+            ->orderBy('NAMA')
+            ->pluck('NAMA')
+            ->toArray();
+
+        return view('nias.index', compact(
+            'records', 'sentRecords', 'totalSemua', 'totalBaru', 'totalUpdate',
+            'isNiasOpen', 'tarifNias', 'hasBukti',
+            'domisilis', 'userClub', 'allClubs', 'userRole', 'expiredDate',
+            'existingNias', 'existingNames', 'existingNiasMyClub', 'existingNamesMyClub'
+        ));
     }
 
     // -------------------------------------------------------------------------
@@ -160,7 +202,7 @@ class NiasController extends Controller
         $domInfo = !empty($validated['NAMAKOTADOM']) ? (Nias::$domisiliLookup[$validated['NAMAKOTADOM']] ?? null) : null;
 
         $today = Carbon::today();
-        $expired = $today->copy()->day(28)->addYears(2);
+        $expired = $today->copy()->day(28)->addMonth()->addYears(2);
 
         $folder = 'nias/' . Auth::id();
         $fileKk = $request->hasFile('file_kk') ? $request->file('file_kk')->store($folder, 'local') : null;
@@ -186,7 +228,7 @@ class NiasController extends Controller
                 'KDKOTA' => $clubInfo[2] ?? null,
                 'NAMAKOTA' => $clubInfo[3] ?? null,
                 'KDJENISDOM' => $domInfo[0] ?? null,
-                'JENISDOM' => $validated['JENISDOM'] ?: ($domInfo[1] ?? null),
+                'JENISDOM' => $validated['JENISDOM'] ?? ($domInfo[1] ?? null),
                 'KDPROPDOM' => '05',
                 'NAMAPROPDOM' => 'JAWA TIMUR',
                 'KDKOTADOM' => $domInfo[2] ?? null,
@@ -210,11 +252,11 @@ class NiasController extends Controller
 
         if ($isUpdate) {
             return redirect()->route('nias.index')
-                ->with('success', 'Update NIAS berhasil! Masa berlaku diperpanjang s/d: ' . $expired->format('d/m/Y'));
+                ->with('success', 'Mohon waktu agar admin memeriksa data Update NIAS anda. Jika persyaratan sudah lengkap maka akan dikonfirmasi oleh admin melalui email.');
         }
 
         return redirect()->route('nias.index')
-            ->with('success', 'Pendaftaran NIAS berhasil! Masa berlaku s/d: ' . $expired->format('d/m/Y'));
+            ->with('success', 'Mohon waktu agar admin memeriksa data pendaftaran NIAS anda, jika persyaratan sudah lengkap maka akan dikonfirmasi oleh admin melalui email.');
     }
 
     // -------------------------------------------------------------------------
@@ -870,7 +912,7 @@ class NiasController extends Controller
 
         $userClub = $user->namaclub;
         $userRole = $user->role;
-        $expiredDate = now()->day(28)->addYears(2);
+        $expiredDate = now()->day(28)->addMonth()->addYears(2);
 
         // 1. Data NONIAS & NAMA untuk tipe yg butuh semua club (update_club, update_all)
         $existingNias = NiasExisting::whereNotNull('NONIAS')

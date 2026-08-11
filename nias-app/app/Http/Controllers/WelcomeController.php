@@ -19,21 +19,26 @@ class WelcomeController extends Controller
             return view('welcome');
         }
 
+        // Regular NIAS user: tidak boleh mengakses welcome page
+        // (karena bisa masuk ke daftar lomba yang butuh akun dedicated)
+        if ($user->role !== 'admin') {
+            return redirect()->route('nias.index');
+        }
+
         // Admin: jika sudah punya pilihan terakhir di session → langsung redirect
-        if ($user->role === 'admin' && session()->has('last_app')) {
+        if (session()->has('last_app')) {
             $lastApp = session('last_app');
             if ($lastApp === 'nias') {
                 return redirect()->route('nias.index');
             }
             if ($lastApp === 'lomba') {
-                // Ganti dengan route daftar lomba saat sudah digabung
+                if (!config('lomba.enabled')) {
+                    session()->forget('last_app');
+                    return view('welcome');
+                }
                 return redirect()->route('lomba.index');
             }
         }
-/*
-        if ($lastApp === 'lomba') {
-            return redirect()->route('lomba.index'); // Diarahkan ke route lomba
-        }*/
 
         return view('welcome');
     }

@@ -179,12 +179,6 @@
                             <i class="bi bi-list-ul me-1"></i>Data NIAS
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('nias.create') ? 'active fw-semibold' : '' }}"
-                            href="{{ route('nias.create') }}">
-                            <i class="bi bi-person-plus me-1"></i>Daftar Atlet Baru
-                        </a>
-                    </li>
 
                     {{-- Kembali ke Daftar NIAS — muncul di subpage NIAS --}}
                     @if(request()->routeIs('nias.create', 'nias.edit', 'nias.show', 'nias.update-data', 'nias.existing'))
@@ -213,7 +207,7 @@
 
                 </ul>
 
-                {{-- User info + logout --}}
+                {{-- User info + logout — NIAS user --}}
                 @auth
                     <div class="d-flex align-items-center gap-2 mt-2 mt-lg-0">
                         <div class="user-badge d-flex align-items-center gap-2">
@@ -222,7 +216,6 @@
                             <span class="club-tag">{{ Auth::user()->namaclub }}</span>
                         </div>
 
-                        {{-- Tombol Setting Akun --}}
                         <a href="{{ route('user.setting') }}"
                             class="btn btn-sm btn-outline-light {{ request()->routeIs('user.setting') ? 'active' : '' }}"
                             title="Pengaturan Akun">
@@ -237,6 +230,34 @@
                         </form>
                     </div>
                 @endauth
+
+                {{-- User info + logout — Lomba user (session-based) --}}
+                @if(!auth()->check() && session()->has('lomba_user_id'))
+                    @php
+                        $lombaUser = \App\Models\LombaUser::find(session('lomba_user_id'));
+                    @endphp
+                    @if($lombaUser)
+                    <div class="d-flex align-items-center gap-2 mt-2 mt-lg-0">
+                        <div class="user-badge d-flex align-items-center gap-2">
+                            <i class="bi bi-person-circle"></i>
+                            <span>{{ $lombaUser->nama ?? $lombaUser->email }}</span>
+                        </div>
+
+                        <a href="{{ route('lomba.account') }}"
+                            class="btn btn-sm btn-outline-light"
+                            title="Pengaturan Akun Lomba">
+                            <i class="bi bi-person-gear me-1"></i>Akun
+                        </a>
+
+                        <form method="POST" action="{{ route('lomba.logout') }}" class="m-0">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-light" title="Logout Lomba">
+                                <i class="bi bi-box-arrow-right me-1"></i>Logout
+                            </button>
+                        </form>
+                    </div>
+                    @endif
+                @endif
             </div>
         </div>
     </nav>

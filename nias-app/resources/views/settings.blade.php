@@ -193,8 +193,11 @@
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label small fw-bold">Keterangan</label>
-                                            <input type="text" name="ket_kompetisi" class="form-control"
+                                            <input type="text" name="ket_kompetisi" id="ketKompetisi" class="form-control"
                                                    value="{{ $kompetisi->KETKOMPETISI ?? 'ANTAR KOTA' }}">
+                                            <div class="small text-muted mt-1">
+                                                <i class="bi bi-info-circle me-1"></i>Otomatis berubah saat jenis kompetisi diganti.
+                                            </div>
                                         </div>
                                         <div class="col-md-2">
                                             <label class="form-label small fw-bold">Wajib NIAS</label>
@@ -390,13 +393,13 @@
 
                         <hr>
 
-                        {{-- 6. Manajemen User (existing) --}}
+                        {{-- 6. Manajemen Lomba Account --}}
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="fw-bold mb-0">Manajemen Akun Pelatih / Lomba</h6>
+                            <h6 class="fw-bold mb-0">Manajemen Lomba Account</h6>
                             <form action="{{ route('settings') }}" method="GET" class="d-flex">
                                 <input type="hidden" name="tab" value="lomba">
-                                <input type="text" name="cari" class="form-control form-control-sm me-2"
-                                    placeholder="Cari nama/email..." value="{{ request('cari') }}">
+                                <input type="text" name="cari_lomba" class="form-control form-control-sm me-2"
+                                    placeholder="Cari nama/email..." value="{{ request('cari_lomba') }}">
                                 <button type="submit" class="btn btn-sm btn-dark">Cari</button>
                             </form>
                         </div>
@@ -404,31 +407,87 @@
                             <table class="table table-sm table-hover border">
                                 <thead class="table-light">
                                     <tr>
+                                        <th>Email</th>
                                         <th>Nama</th>
-                                        <th>Club</th>
-                                        <th>Role</th>
+                                        <th>No. WA</th>
+                                        <th>Kompetisi</th>
+                                        <th>Status</th>
                                         <th>Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach($users as $user)
+                                    @forelse($lombaUsers as $lu)
+                                        @php
+                                            $jns = optional($lu->kontingen)->jns_kompetisi;
+                                            $kompetisiLabel = match($jns) {
+                                                'K' => 'Antar Kota',
+                                                'P' => 'Antar Provinsi',
+                                                'C' => 'Antar Club',
+                                                null => '—',
+                                                default => $jns,
+                                            };
+                                        @endphp
                                         <tr>
-                                            <td>{{ $user->nama }}</td>
-                                            <td>{{ $user->namaclub }}</td>
-                                            <td><span class="badge bg-secondary">{{ $user->role }}</span></td>
+                                            <td class="small">{{ $lu->email }}</td>
+                                            <td>{{ $lu->nama ?? '—' }}</td>
+                                            <td>{{ $lu->no_wa ?? '—' }}</td>
                                             <td>
-                                                <button onclick="confirmReset('{{ $user->id }}')"
-                                                    class="btn btn-xs btn-warning">Reset</button>
+                                                @if($jns)
+                                                    <span class="badge bg-info text-dark">{{ $kompetisiLabel }}</span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if($lu->isRegistered())
+                                                    <span class="badge bg-success">Password Aktif</span>
+                                                @else
+                                                    <span class="badge bg-warning text-dark">Belum Password</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-center" style="white-space:nowrap">
+                                                <a href="{{ route('settings.lomba.edit', $lu->id) }}"
+                                                   class="btn btn-xs btn-outline-primary" title="Edit kontingen">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-xs btn-danger"
+                                                        onclick="confirmDeleteLomba('{{ $lu->id }}', '{{ addslashes($lu->email) }}')"
+                                                        title="Hapus akun lomba">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
                                             </td>
                                         </tr>
-                                    @endforeach
+                                    @empty
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-3">
+                                                <i class="bi bi-inbox me-1"></i>Tidak ada akun lomba ditemukan.
+                                            </td>
+                                        </tr>
+                                    @endforelse
                                 </tbody>
                             </table>
-                            {{ $users->links() }}
+                            {{ $lombaUsers->links() }}
                         </div>
+
+                        {{-- Hidden form for deleting lomba user --}}
+                        <form id="form_delete_lomba" method="POST" style="display:none;">
+                            @csrf @method('DELETE')
+                        </form>
                     </div>
 
                     <script>
+                    // ── Auto-fill keterangan berdasarkan jenis kompetisi ──
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const kompetisiSelect = document.querySelector('select[name="jns_kompetisi"]');
+                        const keteranganInput = document.getElementById('ketKompetisi');
+                        if (kompetisiSelect && keteranganInput) {
+                            kompetisiSelect.addEventListener('change', function () {
+                                const labels = { 'K': 'ANTAR KOTA', 'P': 'ANTAR PROPINSI', 'C': 'ANTAR CLUB' };
+                                keteranganInput.value = labels[this.value] || '';
+                            });
+                        }
+                    });
+
                     let depositIdx = {{ count($depositRanges) > 0 ? count($depositRanges) : 1 }};
                     function addDepositRow() {
                         const tbody = document.querySelector('#depositTable tbody');
@@ -712,6 +771,23 @@
                         inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = id;
                         form.appendChild(inp);
                     });
+                    form.submit();
+                }
+            });
+        }
+
+        // ── Delete lomba account ──────────────────────────────────
+        function confirmDeleteLomba(userId, email) {
+            Swal.fire({
+                title: 'Hapus Akun Lomba?',
+                html: 'Akun lomba <strong>' + email + '</strong> akan dihapus permanen.',
+                icon: 'warning', showCancelButton: true,
+                confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Hapus!', cancelButtonText: 'Batal',
+            }).then(result => {
+                if (result.isConfirmed) {
+                    const form = document.getElementById('form_delete_lomba');
+                    form.action = '/settings/lomba/users/' + userId;
                     form.submit();
                 }
             });

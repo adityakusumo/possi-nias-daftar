@@ -10,6 +10,7 @@ use App\Models\Kompetisi;
 use App\Models\MstDeposit;
 use App\Models\MstDenda;
 use App\Models\MstBiayaExtra;
+use App\Models\LombaUser;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
@@ -35,7 +36,22 @@ class SettingController extends Controller
             ];
         }
 
-        // Data untuk tab Lomba
+        // Filter lomba accounts by current kompetisi setting
+        $activeKompetisi = optional(Kompetisi::first())->JNSKOMPETISI;
+
+        // Data lomba accounts (lomba_users)
+        $lombaSearch = request('cari_lomba');
+        $lombaUsers  = LombaUser::with('kontingen')
+                                ->when($activeKompetisi, fn($q) => $q->whereHas('kontingen', fn($k) => $k->where('jns_kompetisi', $activeKompetisi)))
+                                ->when($lombaSearch, fn($q) => $q->where(function($sq) use ($lombaSearch) {
+                                    $sq->where('nama',  'like', "%{$lombaSearch}%")
+                                       ->orWhere('email', 'like', "%{$lombaSearch}%");
+                                }))
+                                ->orderBy('email')
+                                ->paginate(20, ['*'], 'lomba_page')
+                                ->withQueryString();
+
+        // Data untuk tab Lomba (NIAS users — kept for legacy reset)
         $search = request('cari');
         $users  = User::when($search, fn($q) => $q->where('nama', 'like', "%{$search}%")
                                                    ->orWhere('email', 'like', "%{$search}%"))
@@ -69,7 +85,7 @@ class SettingController extends Controller
         return view('settings', compact(
             'niasOpenDate', 'niasCloseDate',
             'clubStats', 'allClubs',
-            'users', 'akunUsers',
+            'users', 'akunUsers', 'lombaUsers',
             'tarifNias',
             'kompetisi', 'lombaTarifPerorangan', 'lombaTarifEstafet',
             'depositRanges', 'dendaData', 'biayaExtraList'
@@ -176,6 +192,130 @@ class SettingController extends Controller
         $count = User::where('role', '!=', 'admin')->delete();
         return redirect()->route('settings', ['tab' => 'akun'])
             ->with('success', "Semua {$count} akun regular berhasil dihapus.");
+    }
+
+    // ── Show/edit lomba user kontingen ────────────────────────────
+    public function editLombaKontingen($id)
+    {
+        $lombaUser = LombaUser::with('kontingen')->findOrFail($id);
+
+        // Data for dropdowns
+        $rawKota = \App\Models\MstKota::orderBy('NAMAKOTA', 'asc')
+            ->get(['KDJENIS', 'JENIS', 'NAMAKOTA']);
+        $listKota = $rawKota
+            ->reject(fn($k) => str_starts_with(strtoupper(trim($k->NAMAKOTA)), 'JAKARTA'))
+            ->map(fn($k) => (object)[
+                'value' => strtoupper(trim($k->JENIS)) . '|' . strtoupper(trim($k->NAMAKOTA)),
+                'label' => strtoupper(trim($k->JENIS)) . ' ' . strtoupper(trim($k->NAMAKOTA)),
+            ])->sortBy('label');
+
+        $clubList = \App\Models\NiasExisting::select('NAMACLUB')
+            ->whereNotNull('NAMACLUB')->where('NAMACLUB', '!=', '')
+            ->distinct()->orderBy('NAMACLUB')->pluck('NAMACLUB');
+
+        $provinsiList = [
+            'ACEH', 'SUMATERA UTARA', 'SUMATERA BARAT', 'RIAU', 'JAMBI',
+            'SUMATERA SELATAN', 'BENGKULU', 'LAMPUNG', 'KEP. BANGKA BELITUNG',
+            'KEP. RIAU', 'DKI JAKARTA', 'JAWA BARAT', 'JAWA TENGAH',
+            'DI YOGYAKARTA', 'JAWA TIMUR', 'BANTEN', 'BALI',
+            'NUSA TENGGARA BARAT', 'NUSA TENGGARA TIMUR', 'KALIMANTAN BARAT',
+            'KALIMANTAN TENGAH', 'KALIMANTAN SELATAN', 'KALIMANTAN TIMUR',
+            'KALIMANTAN UTARA', 'SULAWESI UTARA', 'SULAWESI TENGAH',
+            'SULAWESI SELATAN', 'SULAWESI TENGGARA', 'GORONTALO',
+            'SULAWESI BARAT', 'MALUKU', 'MALUKU UTARA',
+            'PAPUA', 'PAPUA BARAT', 'PAPUA SELATAN', 'PAPUA TENGAH',
+            'PAPUA PEGUNUNGAN', 'PAPUA BARAT DAYA',
+        ];
+
+        $jnsKompetisi = optional(Kompetisi::first())->JNSKOMPETISI ?? 'K';
+
+        return view('settings_lomba_edit', compact(
+            'lombaUser', 'listKota', 'clubList', 'provinsiList', 'jnsKompetisi'
+        ));
+    }
+
+    // ── Save lomba user kontingen ──────────────────────────────────
+    public function updateLombaKontingen(Request $request, $id)
+    {
+        $lombaUser = LombaUser::with('kontingen')->findOrFail($id);
+        $jnsKompetisi = Kompetisi::getJenis();
+
+        $rules = ['nama' => 'nullable|string|max:100', 'no_wa' => 'nullable|string|max:20'];
+
+        if ($jnsKompetisi === 'K') {
+            $rules['kota_kab'] = 'required|string|max:100';
+            $rules['provinsi'] = 'nullable|string|max:50';
+        } elseif ($jnsKompetisi === 'C') {
+            $rules['nama_kontingen'] = 'required|string|max:100';
+        } else {
+            $rules['provinsi'] = 'required|string|max:50';
+        }
+
+        $validated = $request->validate($rules);
+
+        // Update lomba user name/phone
+        $lombaUser->update([
+            'nama'  => strtoupper(trim($validated['nama'] ?? $lombaUser->nama)),
+            'no_wa' => trim($validated['no_wa'] ?? $lombaUser->no_wa),
+        ]);
+
+        // Build kontingen data
+        $kontingenData = ['jns_kompetisi' => $jnsKompetisi];
+
+        if ($jnsKompetisi === 'K') {
+            $raw = strtoupper(trim($validated['kota_kab']));
+            if (str_contains($raw, '|')) {
+                $parts = explode('|', $raw, 2);
+                $jenis = trim($parts[0] ?? 'KOTA');
+                $kota  = trim($parts[1] ?? '');
+            } else {
+                $parts = explode(' ', $raw, 2);
+                $jenis = trim($parts[0] ?? 'KOTA');
+                $kota  = trim($parts[1] ?? $raw);
+                if (!in_array($jenis, ['KOTA', 'KAB', 'KAB.', 'KABUPATEN'])) {
+                    $kota  = $raw;
+                    $jenis = 'KOTA';
+                }
+            }
+            $sep = ($jenis === 'KAB' || $jenis === 'KAB.' || $jenis === 'KABUPATEN') ? '. ' : ' ';
+            $jenisNorm = ($jenis === 'KAB.' || $jenis === 'KABUPATEN') ? 'KAB' : $jenis;
+            $kontingenData['jenis_wilayah']  = $jenisNorm;
+            $kontingenData['nama_wilayah']   = $kota;
+            $kontingenData['nama_kontingen'] = $jenisNorm . $sep . $kota;
+            $kontingenData['provinsi']       = strtoupper(trim($validated['provinsi'] ?? 'JAWA TIMUR'));
+        } elseif ($jnsKompetisi === 'P') {
+            $kontingenData['jenis_wilayah'] = 'PROP';
+            $kontingenData['nama_wilayah']  = strtoupper(trim($validated['provinsi'] ?? 'JAWA TIMUR'));
+            $kontingenData['provinsi']      = strtoupper(trim($validated['provinsi'] ?? 'JAWA TIMUR'));
+            $kontingenData['nama_kontingen'] = strtoupper(trim($validated['nama_kontingen'] ?? ''));
+        } else {
+            $kontingenData['jenis_wilayah'] = null;
+            $kontingenData['nama_wilayah']  = null;
+            $kontingenData['provinsi']      = 'JAWA TIMUR';
+            $kontingenData['nama_kontingen'] = strtoupper(trim($validated['nama_kontingen'] ?? ''));
+        }
+
+        \App\Models\Kontingen::updateOrCreate(
+            ['lomba_user_id' => $lombaUser->id],
+            $kontingenData
+        );
+
+        return redirect()->route('settings', ['tab' => 'lomba'])
+            ->with('success', "Kontingen untuk {$lombaUser->email} berhasil diperbarui.");
+    }
+
+    // ── Hapus lomba user ──────────────────────────────────────────
+    public function deleteLombaUser($id)
+    {
+        $user = LombaUser::findOrFail($id);
+        $email = $user->email;
+        // Also clean up kontingen and tokens
+        \App\Models\Kontingen::where('lomba_user_id', $id)->delete();
+        \App\Models\LombaToken::where('email', $email)->delete();
+        $user->delete();
+
+        return redirect()->route('settings', ['tab' => 'lomba'])
+            ->with('success', "Akun lomba {$email} berhasil dihapus.");
     }
 
     // ── ── Lomba Settings ──────────────────────────────────────────

@@ -20,14 +20,26 @@ Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('auth.register.show');
 Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
 
-// ── Lomba Auth (token-based, no password) ───────────────────────
+// ── Lomba Auth (email + password OR token for new users) ────────
+// Jika fitur lomba dinonaktifkan (config/lomba.php → enabled=false),
+// semua URL /lomba/* dialihkan ke halaman utama. Catch-all ini harus
+// didaftarkan PALING ATAS agar menangkap semua route lomba di bawahnya.
+if (!config('lomba.enabled')) {
+    Route::any('/lomba/{any?}', function () {
+        return redirect()->route('home')->with('lomba_coming_soon', true);
+    })->where('any', '.*');
+}
 Route::get('/lomba/login', [LombaAuthController::class, 'showLogin'])->name('lomba.login');
+Route::post('/lomba/check-email', [LombaAuthController::class, 'checkEmail'])->name('lomba.check-email');
+Route::post('/lomba/login-password', [LombaAuthController::class, 'loginWithPassword'])->name('lomba.login-password');
 Route::post('/lomba/request-token', [LombaAuthController::class, 'requestToken'])->name('lomba.request-token');
 Route::get('/lomba/verify', [LombaAuthController::class, 'showVerify'])->name('lomba.verify');
 Route::post('/lomba/verify-token', [LombaAuthController::class, 'verifyToken'])->name('lomba.verify-token');
 Route::post('/lomba/resend-token', [LombaAuthController::class, 'resendToken'])->name('lomba.resend-token');
 Route::get('/lomba/register', [LombaAuthController::class, 'showRegister'])->name('lomba.register');
 Route::post('/lomba/register', [LombaAuthController::class, 'register'])->name('lomba.register.save');
+Route::get('/lomba/account', [LombaAuthController::class, 'showAccountSettings'])->name('lomba.account');
+Route::post('/lomba/account/password', [LombaAuthController::class, 'updatePassword'])->name('lomba.account.password');
 Route::post('/lomba/logout', [LombaAuthController::class, 'logout'])->name('lomba.logout');
 
 // ── Forgot / Reset Password ─────────────────────────────────────
@@ -94,6 +106,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('/settings/akun/all',                [SettingController::class, 'destroyAllAkun'])->name('settings.akun.destroyAll');
 
         // ── Lomba settings ───────────────────────────────────────
+        Route::get('/settings/lomba/users/{id}/edit', [SettingController::class, 'editLombaKontingen'])->name('settings.lomba.edit');
+        Route::put('/settings/lomba/users/{id}', [SettingController::class, 'updateLombaKontingen'])->name('settings.lomba.update');
+        Route::delete('/settings/lomba/users/{id}', [SettingController::class, 'deleteLombaUser'])->name('settings.lomba.delete-user');
         Route::post('/settings/lomba',           [SettingController::class, 'saveLomba'])->name('settings.lomba.save');
         Route::post('/settings/lomba/tarif',     [SettingController::class, 'saveLombaTarif'])->name('settings.lomba.tarif.save');
         Route::post('/settings/lomba/deposit',   [SettingController::class, 'saveLombaDeposit'])->name('settings.lomba.deposit.save');

@@ -16,9 +16,9 @@ class AuthController extends Controller
     // =========================================================================
     public function showLogin()
     {
-        // Kalau sudah login, langsung ke halaman pilihan
+        // Kalau sudah login, langsung ke halaman NIAS
         if (Auth::check()) {
-            return redirect()->route('welcome');
+            return redirect()->route('nias.index');
         }
 
         return view('auth.login');
@@ -48,10 +48,8 @@ class AuthController extends Controller
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
-            // Semua role → ke halaman pilihan aplikasi
-            // WelcomeController::show() yang handle redirect admin
-            // ke pilihan terakhir jika session sudah ada
-            return redirect()->route('welcome')
+            // Langsung ke halaman NIAS
+            return redirect()->route('nias.index')
             ->with('success', 'Selamat datang, ' . Auth::user()->nama . '!');
         }
 
@@ -123,7 +121,7 @@ class AuthController extends Controller
         // Auto login setelah daftar
         Auth::login($user);
 
-        return redirect()->route('welcome')
+        return redirect()->route('nias.index')
         ->with('success', 'Akun berhasil dibuat! Selamat datang, ' . $user->nama . '.');
     }
 

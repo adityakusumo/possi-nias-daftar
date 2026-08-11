@@ -291,7 +291,7 @@
         </div>
         <div class="col-sm-4">
             <span class="text-secondary">Masa Berlaku s/d:</span>
-            <strong class="ms-1 text-success">{{ now()->day(28)->addYears(2)->format('d/m/Y') }}</strong>
+            <strong class="ms-1 text-success">{{ now()->day(28)->addMonth()->addYears(2)->format('d/m/Y') }}</strong>
         </div>
     </div>
 </div>

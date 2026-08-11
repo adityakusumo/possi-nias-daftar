@@ -243,6 +243,42 @@
         $(function () {
             $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
 
+            // ── Filter Nama Kota/Kab berdasarkan Jenis Wilayah (KK) ──
+            let jenisDomFilter = $('#JENISDOM').val() || '';
+            function makeKotaDomMatcher() {
+                return function (params, data) {
+                    if (jenisDomFilter) {
+                        const v = String(data.id || '').toUpperCase();
+                        const match = jenisDomFilter === 'KOTA'
+                            ? v.indexOf('KOTA') > -1
+                            : v.indexOf('KAB.') > -1;
+                        if (!match) return null;
+                    }
+                    if (!params.term || params.term.trim() === '') return data;
+                    if (data.text.toUpperCase().indexOf(params.term.toUpperCase()) > -1) return data;
+                    return null;
+                };
+            }
+            // Re-init NAMAKOTADOM dengan matcher filter
+            if ($('#NAMAKOTADOM').hasClass('select2-hidden-accessible')) {
+                $('#NAMAKOTADOM').select2('destroy');
+            }
+            $('#NAMAKOTADOM').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                matcher: makeKotaDomMatcher(),
+            });
+            $('#JENISDOM').on('change', function () {
+                jenisDomFilter = $(this).val() || '';
+                const $kd = $('#NAMAKOTADOM');
+                const cur = $kd.val();
+                if (cur && jenisDomFilter) {
+                    const v = cur.toUpperCase();
+                    const ok = jenisDomFilter === 'KOTA' ? v.indexOf('KOTA') > -1 : v.indexOf('KAB.') > -1;
+                    if (!ok) $kd.val('').trigger('change');
+                }
+            });
+
             const userClub = '{{ $userClub }}';
 
             // Matcher: filter option berdasarkan class yg aktif
@@ -351,6 +387,7 @@
                     $('input[name="mutasi_luar_jatim"]').prop('required', true);
                 } else {
                     $('#wrapper_domisili').hide();
+                    jenisDomFilter = '';
                     $('#JENISDOM').val('');
                     $('#NAMAKOTADOM').val('').trigger('change');
                     $('#JENISDOM, #NAMAKOTADOM').prop('required', false);

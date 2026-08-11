@@ -205,6 +205,13 @@
     </div>
     @endauth
 
+    @if(session('lomba_coming_soon'))
+        <div class="alert alert-warning text-center mx-auto mb-3" style="max-width:520px;">
+            <i class="bi bi-tools me-1"></i>Fitur Pendaftaran Lomba masih dalam pengembangan.
+            Silakan gunakan Pendaftaran NIAS.
+        </div>
+    @endif
+
     <div class="d-flex flex-wrap gap-4 justify-content-center px-3">
 
         @auth
@@ -227,15 +234,28 @@
                 </div>
             </a>
 
-            <a href="{{ route('lomba.index') }}" class="app-card" onclick="saveChoice('lomba')">
-                <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
-                    <i class="bi bi-trophy"></i>
+            @if(config('lomba.enabled'))
+                <a href="{{ route('lomba.index') }}" class="app-card" onclick="saveChoice('lomba')">
+                    <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
+                        <i class="bi bi-trophy"></i>
+                    </div>
+                    <div class="app-info">
+                        <h3>Pendaftaran Lomba</h3>
+                        <p>Daftarkan kontingen dan atlet untuk kompetisi.</p>
+                    </div>
+                </a>
+            @else
+                <div class="app-card" style="opacity:.55; cursor:not-allowed; filter:grayscale(.2);">
+                    <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
+                        <i class="bi bi-trophy"></i>
+                    </div>
+                    <div class="app-info">
+                        <h3>Pendaftaran Lomba</h3>
+                        <p>Fitur masih dalam pengembangan.</p>
+                    </div>
+                    <span class="badge bg-warning text-dark mt-2">Segera Hadir</span>
                 </div>
-                <div class="app-info">
-                    <h3>Pendaftaran Lomba</h3>
-                    <p>Daftarkan kontingen dan atlet untuk kompetisi.</p>
-                </div>
-            </a>
+            @endif
 
             @if(Auth::user()->role === 'admin')
                 <a href="{{ route('settings') }}" class="app-card">
@@ -260,15 +280,28 @@
                 </div>
             </a>
 
-            <a href="{{ route('lomba.login') }}" class="app-card">
-                <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
-                    <i class="bi bi-trophy"></i>
+            @if(config('lomba.enabled'))
+                <a href="{{ route('lomba.login') }}" class="app-card">
+                    <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
+                        <i class="bi bi-trophy"></i>
+                    </div>
+                    <div class="app-info">
+                        <h3>Daftar Lomba</h3>
+                        <p>Login dengan token email untuk mendaftarkan kontingen lomba.</p>
+                    </div>
+                </a>
+            @else
+                <div class="app-card" style="opacity:.55; cursor:not-allowed; filter:grayscale(.2);">
+                    <div class="icon-wrap" style="background:#fff3e0;color:#e65100;">
+                        <i class="bi bi-trophy"></i>
+                    </div>
+                    <div class="app-info">
+                        <h3>Daftar Lomba</h3>
+                        <p>Fitur masih dalam pengembangan.</p>
+                    </div>
+                    <span class="badge bg-warning text-dark mt-2">Segera Hadir</span>
                 </div>
-                <div class="app-info">
-                    <h3>Daftar Lomba</h3>
-                    <p>Login dengan token email untuk mendaftarkan kontingen lomba.</p>
-                </div>
-            </a>
+            @endif
         @endauth
     </div>
 

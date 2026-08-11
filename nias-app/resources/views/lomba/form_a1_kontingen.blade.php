@@ -67,15 +67,21 @@ Lengkapi <strong>Data Kontingen</strong> terlebih dahulu.
 <div class="col-md-5">
 <div class="p-3 bg-light rounded shadow-sm border">
 <label class="form-label d-block mb-3 fw-bold">Jenis Kompetisi</label>
+@php
+    $jns = old('jnsKompetisi', $kontingen->jns_kompetisi ?? 'K');
+    $jnsLabels = ['K' => 'Antar Kabupaten / Kota', 'P' => 'Antar Provinsi', 'C' => 'Antar Club'];
+@endphp
+@foreach(['K', 'P', 'C'] as $val)
 <div class="form-check mb-2">
-<input class="form-check-input" type="radio" name="jnsKompetisi" id="jnsKab" value="K"
-{{ old('jnsKompetisi', $kontingen->jns_kompetisi ?? 'K') == 'K' ? 'checked' : '' }}>
-<label class="form-check-label" for="jnsKab">Antar Kabupaten / Kota</label>
+    <input class="form-check-input" type="radio" name="jnsKompetisi" id="jns{{ $val }}"
+           value="{{ $val }}" {{ $jns == $val ? 'checked' : '' }} disabled>
+    <label class="form-check-label text-muted" for="jns{{ $val }}">{{ $jnsLabels[$val] }}</label>
 </div>
-<div class="form-check">
-<input class="form-check-input" type="radio" name="jnsKompetisi" id="jnsPerkumpulan" value="P"
-{{ old('jnsKompetisi', $kontingen->jns_kompetisi ?? '') == 'P' ? 'checked' : '' }}>
-<label class="form-check-label" for="jnsPerkumpulan">Antar Perkumpulan / Club</label>
+@endforeach
+{{-- Hidden input carries the value on submit --}}
+<input type="hidden" name="jnsKompetisi" value="{{ $jns }}">
+<div class="small text-muted mt-2">
+    <i class="bi bi-lock me-1"></i> Diatur oleh admin.
 </div>
 </div>
 </div>
@@ -90,7 +96,8 @@ value="{{ Auth::user()?->namaclub ?? old('nama_kontingen', $kontingen->nama_kont
 <div id="detail_lokasi">
 <div class="mb-3">
 <label class="form-label fw-bold">Pilih Kabupaten / Kota</label>
-<select id="select_kota_master" class="form-select shadow-sm">
+<select id="select_kota_master" class="form-select shadow-sm"
+        {{ $jns === 'C' ? 'disabled' : '' }}>
 <option value="">-- Pilih Wilayah --</option>
 @foreach($listKota as $kota)
 <option value="{{ $kota->ID }}"
@@ -146,6 +153,29 @@ $(document).ready(function() {
         $('#input_jenis_wilayah').val(selected.data('jenis') || '');
         $('#input_nama_wilayah').val(selected.data('nama') || '');
     });
+
+    // ── Club auto-fill: if kompetisi = C and kontingen has a club name,
+    //     look up the club in NIAS and auto-select the matching kota/kab ──
+    @if(isset($clubLookup) && $kontingen && $kontingen->jns_kompetisi === 'C' && $kontingen->nama_kontingen)
+        var clubName = '{{ addslashes($kontingen->nama_kontingen) }}'.toUpperCase();
+        var lookup = @json($clubLookup);
+        if (lookup[clubName]) {
+            var parts = lookup[clubName].split('|');
+            var jenis = parts[0];
+            var nama  = parts[1];
+            // Find matching option in select
+            $('#select_kota_master option').each(function() {
+                var optJenis = $(this).data('jenis')?.toUpperCase() || '';
+                var optNama  = $(this).data('nama')?.toUpperCase() || '';
+                if (optJenis === jenis && optNama === nama) {
+                    $(this).prop('selected', true);
+                    $('#input_jenis_wilayah').val(jenis);
+                    $('#input_nama_wilayah').val(nama);
+                    return false; // break
+                }
+            });
+        }
+    @endif
 });
 </script>
 @endpush
