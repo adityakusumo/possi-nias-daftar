@@ -31,3 +31,4 @@ auth.json
 
 *.code-workspace
 env_setting.txt.gitignore
+env_setting_deepseek_ver.txt.gitignore
