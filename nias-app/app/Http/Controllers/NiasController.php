@@ -252,11 +252,11 @@ class NiasController extends Controller
 
         if ($isUpdate) {
             return redirect()->route('nias.index')
-                ->with('success', 'Mohon waktu agar admin memeriksa data Update NIAS anda. Jika persyaratan sudah lengkap maka akan dikonfirmasi oleh admin melalui email.');
+                ->with('success', 'Data Update Nias anda sudah berhasil tersimpan.');
         }
 
         return redirect()->route('nias.index')
-            ->with('success', 'Mohon waktu agar admin memeriksa data pendaftaran NIAS anda, jika persyaratan sudah lengkap maka akan dikonfirmasi oleh admin melalui email.');
+            ->with('success', 'Data Pendaftaran Nias Baru anda sudah berhasil tersimpan.');
     }
 
     // -------------------------------------------------------------------------
