@@ -30,3 +30,4 @@ Homestead.json
 auth.json
 
 *.code-workspace
+env_setting.txt.gitignore
