@@ -32,3 +32,6 @@ auth.json
 *.code-workspace
 env_setting.txt.gitignore
 env_setting_deepseek_ver.txt.gitignore
+
+# database backup files (PII) - kept out of git
+*.sql
