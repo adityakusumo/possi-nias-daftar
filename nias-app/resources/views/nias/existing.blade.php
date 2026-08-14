@@ -201,7 +201,7 @@ dari <strong>{{ $records->total() }}</strong> data
 {{-- ── Modal Export CSV ──────────────────────────────────────────── --}}
 <div class="modal fade" id="exportExistingModal" tabindex="-1"
 aria-labelledby="exportExistingModalLabel" aria-hidden="true">
-<div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">
 <div class="modal-content">
 <form method="GET" action="{{ route('nias.existing.export') }}">
 <div class="modal-header">
@@ -346,6 +346,19 @@ value="30" min="1" max="3650">
 </div>
 </div>
 </div>
+
+@push('styles')
+<style>
+/* Modal fullscreen di layar kecil: pastikan body scroll di dalam modal
+   (header & footer tetap terlihat, tombol Download tidak tenggelam) */
+@media (max-width: 767.98px) {
+    #exportExistingModal .modal-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+</style>
+@endpush
 
 @push('scripts')
 <script>
