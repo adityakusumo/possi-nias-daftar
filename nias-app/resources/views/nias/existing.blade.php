@@ -204,11 +204,19 @@ aria-labelledby="exportExistingModalLabel" aria-hidden="true">
 <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">
 <div class="modal-content">
 <form method="GET" action="{{ route('nias.existing.export') }}">
-<div class="modal-header">
-<h5 class="modal-title" id="exportExistingModalLabel">
+<div class="modal-header flex-wrap gap-2">
+<div class="d-flex align-items-center gap-2">
+<h5 class="modal-title mb-0" id="exportExistingModalLabel">
 <i class="bi bi-file-earmark-arrow-down me-2"></i>Export Data Nias
 </h5>
 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+</div>
+<div class="d-flex gap-2 ms-auto">
+<button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+<button type="submit" class="btn btn-success btn-sm fw-semibold">
+<i class="bi bi-download me-1"></i>Download CSV
+</button>
+</div>
 </div>
 
 <div class="modal-body">
