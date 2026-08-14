@@ -902,6 +902,144 @@ class NiasController extends Controller
     }
 
     // -------------------------------------------------------------------------
+    // EXISTING EXPORT CSV — Export data atlet existing dengan opsi filter/sort
+    // -------------------------------------------------------------------------
+    public function exportExisting(Request $request)
+    {
+        $user = Auth::user();
+        $isAdmin = $user->role === 'admin';
+        $namaclub = $user->namaclub;
+
+        // Format export — hanya CSV yang aktif; XLSX untuk pengembangan mendatang
+        $format = $request->get('format', 'csv');
+        if ($format !== 'csv') {
+            return back()->with('error', 'Format XLSX belum tersedia. Silakan gunakan format CSV.');
+        }
+
+        // Kolom sortable sama dengan halaman existing + tambahan untuk export
+        $sortableColumns = [
+            'NAMA', 'GENDER', 'TPTLAHIR', 'TGLLAHIR', 'NONIAS',
+            'JENISDOM', 'NAMAKOTADOM', 'EXPIRED', 'NAMACLUB', 'TGLDAFTAR',
+        ];
+        $sortCol = in_array($request->sort, $sortableColumns) ? $request->sort : 'EXPIRED';
+        $sortDir = $request->has('dir') ? ($request->dir === 'desc' ? 'desc' : 'asc') : 'desc';
+
+        $query = NiasExisting::orderBy($sortCol, $sortDir)
+            ->orderBy('NAMA', 'asc');
+
+        // ── Filter dasar: club & search (mengikuti filter halaman) ──────────
+        if ($isAdmin) {
+            if ($request->filled('club')) {
+                $query->where('NAMACLUB', $request->club);
+            }
+        } else {
+            $query->where('NAMACLUB', $namaclub);
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('NAMA', 'like', "%{$s}%")
+                    ->orWhere('NONIAS', 'like', "%{$s}%");
+            });
+        }
+
+        // ── Filter khusus export: status kadaluwarsa ────────────────────────
+        // all     = semua (termasuk yang sudah expired)
+        // active  = belum expired per hari ini
+        // expired = sudah expired per hari ini
+        // expiring= akan expired dalam N hari ke depan
+        $today = Carbon::today()->toDateString();
+        $expiredStatus = $request->get('expired_status', 'all');
+
+        if ($expiredStatus === 'active') {
+            $query->where(function ($q) use ($today) {
+                $q->whereNull('EXPIRED')->orWhere('EXPIRED', '>=', $today);
+            });
+        } elseif ($expiredStatus === 'expired') {
+            $query->whereNotNull('EXPIRED')->where('EXPIRED', '<', $today);
+        } elseif ($expiredStatus === 'expiring') {
+            $days = max(1, min((int) $request->get('expiring_days', 30), 3650));
+            $cutoff = Carbon::today()->addDays($days)->toDateString();
+            $query->whereNotNull('EXPIRED')
+                ->where('EXPIRED', '>=', $today)
+                ->where('EXPIRED', '<=', $cutoff);
+        }
+
+        // Rentang tanggal EXPIRED (dari–sampai)
+        if ($request->filled('expired_from')) {
+            $query->where('EXPIRED', '>=', $request->expired_from);
+        }
+        if ($request->filled('expired_to')) {
+            $query->where('EXPIRED', '<=', $request->expired_to);
+        }
+
+        // Filter jenis kelamin
+        if ($request->filled('gender') && in_array($request->gender, ['L', 'P'])) {
+            $query->where('GENDER', $request->gender);
+        }
+
+        $records = $query->get();
+
+        if ($records->isEmpty()) {
+            return back()->with('error', 'Tidak ada data yang cocok dengan filter untuk diekspor.');
+        }
+
+        // ── Bangun CSV (delimiter ;, UTF-8 BOM, tanggal m/d/Y) ──────────────
+        $scope = $isAdmin ? ($request->club ?: 'SemuaClub') : $namaclub;
+        $scopeSlug = preg_replace('/[^A-Za-z0-9_]/', '_', $scope);
+        $filename = "DataNIASExisting_{$scopeSlug}_" . now()->format('Ymd_His') . '.csv';
+
+        $tmpCsv = tempnam(sys_get_temp_dir(), 'nias_existing_csv_');
+        $out = fopen($tmpCsv, 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+
+        fputcsv($out, [
+            'NO',
+            'NAMA',
+            'GENDER [L/P]',
+            'TEMPAT LAHIR',
+            'TGL LAHIR',
+            'NIK',
+            'EMAIL',
+            'NO. NIAS JATIM',
+            'CLUB',
+            'JENIS DOM',
+            'KOTA/KAB DOM',
+            'TGL DAFTAR',
+            'TGL KADALUWARSA',
+            'STATUS',
+        ]);
+
+        foreach ($records as $i => $r) {
+            $expired = $r->EXPIRED ? Carbon::parse($r->EXPIRED) : null;
+            $status = !$expired ? '' : ($expired->isPast() ? 'EXPIRED' : 'AKTIF');
+
+            fputcsv($out, [
+                $i + 1,
+                $r->NAMA ?? '',
+                $r->GENDER ?? '',
+                $r->TPTLAHIR ?? $r->TEMPATLAHIR ?? '',
+                $r->TGLLAHIR ? Carbon::parse($r->TGLLAHIR)->format('m/d/Y') : '',
+                $r->NIK    ? "'" . $r->NIK    : '',
+                $r->EMAIL ?? '',
+                $r->NONIAS ? "'" . $r->NONIAS : '',
+                $r->NAMACLUB ?? '',
+                $r->JENISDOM ?? '',
+                $this->stripWilayahPrefix($r->NAMAKOTADOM),
+                $r->TGLDAFTAR ? Carbon::parse($r->TGLDAFTAR)->format('m/d/Y') : '',
+                $expired ? $expired->format('m/d/Y') : '',
+                $status,
+            ]);
+        }
+        fclose($out);
+
+        return response()->download($tmpCsv, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ])->deleteFileAfterSend(true);
+    }
+
+    // -------------------------------------------------------------------------
     // SHOW UPDATE FORM
     // -------------------------------------------------------------------------
     public function showUpdateForm()

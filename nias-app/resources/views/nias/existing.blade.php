@@ -23,9 +23,15 @@ $q = request()->only('search', 'club');
     {{ $namaclub }}
 @endif
 </h5>
+<div class="d-flex gap-2">
+<button type="button" class="btn btn-success btn-sm fw-semibold shadow-sm"
+data-bs-toggle="modal" data-bs-target="#exportExistingModal">
+<i class="bi bi-file-earmark-arrow-down me-1"></i>Export Data Nias
+</button>
 <a href="{{ route('nias.index') }}" class="btn btn-light btn-sm">
 <i class="bi bi-arrow-left me-1"></i>Kembali
 </a>
+</div>
 </div>
 
 <div class="card-body p-3">
@@ -191,4 +197,163 @@ dari <strong>{{ $records->total() }}</strong> data
 
 </div>
 </div>
+
+{{-- ── Modal Export CSV ──────────────────────────────────────────── --}}
+<div class="modal fade" id="exportExistingModal" tabindex="-1"
+aria-labelledby="exportExistingModalLabel" aria-hidden="true">
+<div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal-content">
+<form method="GET" action="{{ route('nias.existing.export') }}">
+<div class="modal-header">
+<h5 class="modal-title" id="exportExistingModalLabel">
+<i class="bi bi-file-earmark-arrow-down me-2"></i>Export Data Nias
+</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+</div>
+
+<div class="modal-body">
+
+{{-- Ikuti filter club & pencarian halaman saat ini --}}
+<input type="hidden" name="club" value="{{ request('club') }}">
+<input type="hidden" name="search" value="{{ request('search') }}">
+<p class="small text-muted mb-3">
+<i class="bi bi-info-circle me-1"></i>
+Export mengikuti filter club &amp; pencarian di halaman ini.
+</p>
+
+{{-- Format export --}}
+<div class="mb-3">
+<label class="form-label">Format Export</label>
+<div class="d-flex gap-4">
+<div class="form-check">
+<input class="form-check-input" type="radio" name="format"
+id="fmtCsv" value="csv" checked>
+<label class="form-check-label" for="fmtCsv">
+<i class="bi bi-filetype-csv me-1"></i>CSV
+</label>
+</div>
+<div class="form-check">
+<input class="form-check-input" type="radio" name="format"
+id="fmtXlsx" value="xlsx" disabled>
+<label class="form-check-label text-muted" for="fmtXlsx">
+<i class="bi bi-file-earmark-excel me-1"></i>XLSX
+<span class="badge bg-secondary ms-1">Segera hadir</span>
+</label>
+</div>
+</div>
+</div>
+
+{{-- Status kadaluwarsa --}}
+<div class="mb-3">
+<label class="form-label">Status Kadaluwarsa (per hari ini)</label>
+<div class="d-flex flex-column gap-2">
+<div class="form-check">
+<input class="form-check-input" type="radio" name="expired_status"
+id="expStatusAll" value="all" checked>
+<label class="form-check-label" for="expStatusAll">
+Semua (termasuk atlet yang sudah kadaluwarsa)
+</label>
+</div>
+<div class="form-check">
+<input class="form-check-input" type="radio" name="expired_status"
+id="expStatusActive" value="active">
+<label class="form-check-label" for="expStatusActive">
+Belum kadaluwarsa (aktif per hari ini)
+</label>
+</div>
+<div class="form-check">
+<input class="form-check-input" type="radio" name="expired_status"
+id="expStatusExpired" value="expired">
+<label class="form-check-label" for="expStatusExpired">
+Sudah kadaluwarsa
+</label>
+</div>
+<div class="form-check d-flex align-items-center gap-2">
+<input class="form-check-input" type="radio" name="expired_status"
+id="expStatusExpiring" value="expiring">
+<label class="form-check-label" for="expStatusExpiring">
+Akan kadaluwarsa dalam
+</label>
+<input type="number" name="expiring_days" id="expiringDays"
+class="form-control form-control-sm" style="width:80px"
+value="30" min="1" max="3650">
+<span class="small text-muted">hari ke depan</span>
+</div>
+</div>
+</div>
+
+{{-- Rentang tanggal kadaluwarsa --}}
+<div class="row g-2 mb-3">
+<div class="col-md-6">
+<label class="form-label" for="expiredFrom">Kadaluwarsa mulai tanggal</label>
+<input type="date" name="expired_from" id="expiredFrom" class="form-control">
+</div>
+<div class="col-md-6">
+<label class="form-label" for="expiredTo">Kadaluwarsa sampai tanggal</label>
+<input type="date" name="expired_to" id="expiredTo" class="form-control">
+</div>
+</div>
+
+{{-- Jenis kelamin --}}
+<div class="row g-2 mb-3">
+<div class="col-md-6">
+<label class="form-label" for="exportGender">Jenis Kelamin</label>
+<select name="gender" id="exportGender" class="form-select">
+<option value="">Semua</option>
+<option value="L">Laki-laki</option>
+<option value="P">Perempuan</option>
+</select>
+</div>
+</div>
+
+<hr>
+
+{{-- Urutan export --}}
+<div class="row g-2">
+<div class="col-md-8">
+<label class="form-label" for="exportSort">Urutkan berdasarkan</label>
+<select name="sort" id="exportSort" class="form-select">
+<option value="EXPIRED"    {{ $sortCol === 'EXPIRED'    ? 'selected' : '' }}>Tanggal Kadaluwarsa</option>
+<option value="NAMA"       {{ $sortCol === 'NAMA'       ? 'selected' : '' }}>Nama Atlet</option>
+<option value="TGLLAHIR"   {{ $sortCol === 'TGLLAHIR'   ? 'selected' : '' }}>Tanggal Lahir</option>
+<option value="NONIAS"     {{ $sortCol === 'NONIAS'     ? 'selected' : '' }}>No. NIAS Jatim</option>
+<option value="NAMACLUB"   {{ $sortCol === 'NAMACLUB'   ? 'selected' : '' }}>Nama Club</option>
+<option value="GENDER"     {{ $sortCol === 'GENDER'     ? 'selected' : '' }}>Jenis Kelamin</option>
+<option value="TPTLAHIR"   {{ $sortCol === 'TPTLAHIR'   ? 'selected' : '' }}>Tempat Lahir</option>
+<option value="JENISDOM"   {{ $sortCol === 'JENISDOM'   ? 'selected' : '' }}>Jenis Domisili</option>
+<option value="NAMAKOTADOM"{{ $sortCol === 'NAMAKOTADOM'? 'selected' : '' }}>Kota/Kab Domisili</option>
+<option value="TGLDAFTAR"  {{ $sortCol === 'TGLDAFTAR'  ? 'selected' : '' }}>Tanggal Daftar</option>
+</select>
+</div>
+<div class="col-md-4">
+<label class="form-label" for="exportDir">Arah Urutan</label>
+<select name="dir" id="exportDir" class="form-select">
+<option value="desc" {{ $sortDir === 'desc' ? 'selected' : '' }}>Terbaru / Z–A</option>
+<option value="asc"  {{ $sortDir === 'asc'  ? 'selected' : '' }}>Terlama / A–Z</option>
+</select>
+</div>
+</div>
+
+</div>
+
+<div class="modal-footer">
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+<button type="submit" class="btn btn-success">
+<i class="bi bi-download me-1"></i>Download CSV
+</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+
+@push('scripts')
+<script>
+// Ketik angka hari → otomatis pilih radio "Akan kadaluwarsa dalam N hari"
+document.getElementById('expiringDays')?.addEventListener('input', function () {
+document.getElementById('expStatusExpiring').checked = true;
+});
+</script>
+@endpush
+
 @endsection

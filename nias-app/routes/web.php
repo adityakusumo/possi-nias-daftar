@@ -139,6 +139,7 @@ Route::middleware('auth')->group(function () {
         return app(\App\Http\Controllers\NiasController::class)->showUpdateForm();
     })->name('nias.update-data');
     Route::get('/nias/existing', [NiasController::class, 'existing'])->name('nias.existing');
+    Route::get('/nias/existing/export', [NiasController::class, 'exportExisting'])->name('nias.existing.export');
     Route::get('/nias/{id}/file/{col}', [NiasController::class, 'serveFile'])->name('nias.file');
 
     Route::get('/nias', [NiasController::class, 'index'])->name('nias.index');
