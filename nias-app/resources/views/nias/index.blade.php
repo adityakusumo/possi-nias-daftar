@@ -48,6 +48,9 @@
                 <a href="{{ route('nias.existing') }}" class="btn btn-secondary btn-sm fw-semibold shadow-sm">
                     <i class="bi bi-people me-1"></i>NIAS Jatim yang sudah terdaftar
                 </a>
+                <a href="{{ route('nias.tutorial') }}" class="btn btn-outline-info btn-sm fw-semibold shadow-sm">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Tutorial Pengoperasian
+                </a>
             </div>
         </div>
 

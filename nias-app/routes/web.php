@@ -142,6 +142,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/nias/existing/export', [NiasController::class, 'exportExisting'])->name('nias.existing.export');
     Route::get('/nias/{id}/file/{col}', [NiasController::class, 'serveFile'])->name('nias.file');
 
+    // ── Tutorial PDF (harus didaftarkan sebelum /nias/{id}) ────────
+    Route::get('/nias/tutorial', function () {
+        $path = public_path('tutorial/Tutorial_Pengoperasian_Website_NIAS_Jatim.pdf');
+        if (!is_file($path)) {
+            abort(404, 'Tutorial PDF tidak ditemukan.');
+        }
+        return response()->download($path, 'Tutorial_Pengoperasian_Website_NIAS_Jatim.pdf');
+    })->name('nias.tutorial');
+
     Route::get('/nias', [NiasController::class, 'index'])->name('nias.index');
     Route::get('/nias/create', function () {
         if (auth()->user()->role !== 'admin' && !\App\Models\AppSetting::isNiasOpen()) {
