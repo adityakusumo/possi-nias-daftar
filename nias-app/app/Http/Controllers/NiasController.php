@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class NiasController extends Controller
 {
@@ -910,10 +912,10 @@ class NiasController extends Controller
         $isAdmin = $user->role === 'admin';
         $namaclub = $user->namaclub;
 
-        // Format export — hanya CSV yang aktif; XLSX untuk pengembangan mendatang
+        // Format export: CSV atau XLSX (PhpSpreadsheet — gratis, lisensi MIT)
         $format = $request->get('format', 'csv');
-        if ($format !== 'csv') {
-            return back()->with('error', 'Format XLSX belum tersedia. Silakan gunakan format CSV.');
+        if (!in_array($format, ['csv', 'xlsx'])) {
+            return back()->with('error', 'Format export tidak didukung.');
         }
 
         // Kolom sortable sama dengan halaman existing + tambahan untuk export
@@ -985,16 +987,11 @@ class NiasController extends Controller
             return back()->with('error', 'Tidak ada data yang cocok dengan filter untuk diekspor.');
         }
 
-        // ── Bangun CSV (delimiter ;, UTF-8 BOM, tanggal m/d/Y) ──────────────
+        // ── Bangun data baris (dipakai untuk CSV maupun XLSX) ────────────────
         $scope = $isAdmin ? ($request->club ?: 'SemuaClub') : $namaclub;
         $scopeSlug = preg_replace('/[^A-Za-z0-9_]/', '_', $scope);
-        $filename = "DataNIASExisting_{$scopeSlug}_" . now()->format('Ymd_His') . '.csv';
 
-        $tmpCsv = tempnam(sys_get_temp_dir(), 'nias_existing_csv_');
-        $out = fopen($tmpCsv, 'w');
-        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
-
-        fputcsv($out, [
+        $header = [
             'NO',
             'NAMA',
             'GENDER [L/P]',
@@ -1009,13 +1006,14 @@ class NiasController extends Controller
             'TGL DAFTAR',
             'TGL KADALUWARSA',
             'STATUS',
-        ]);
+        ];
 
+        $rows = [];
         foreach ($records as $i => $r) {
             $expired = $r->EXPIRED ? Carbon::parse($r->EXPIRED) : null;
             $status = !$expired ? '' : ($expired->isPast() ? 'EXPIRED' : 'AKTIF');
 
-            fputcsv($out, [
+            $rows[] = [
                 $i + 1,
                 $r->NAMA ?? '',
                 $r->GENDER ?? '',
@@ -1030,7 +1028,40 @@ class NiasController extends Controller
                 $r->TGLDAFTAR ? Carbon::parse($r->TGLDAFTAR)->format('m/d/Y') : '',
                 $expired ? $expired->format('m/d/Y') : '',
                 $status,
-            ]);
+            ];
+        }
+
+        if ($format === 'xlsx') {
+            // ── Export XLSX (PhpSpreadsheet — gratis, tanpa biaya tambahan) ──
+            $filename = "DataNIASExisting_{$scopeSlug}_" . now()->format('Ymd_His') . '.xlsx';
+            $tmpXlsx = tempnam(sys_get_temp_dir(), 'nias_existing_xlsx_') . '.xlsx';
+
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->fromArray(array_merge([$header], $rows), null, 'A1');
+            $sheet->getStyle('A1:N1')->getFont()->setBold(true);
+            foreach (range('A', 'N') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save($tmpXlsx);
+            $spreadsheet->disconnectWorksheets();
+
+            return response()->download($tmpXlsx, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        }
+
+        // ── Export CSV (delimiter ;, UTF-8 BOM, tanggal m/d/Y) ─────────────
+        $filename = "DataNIASExisting_{$scopeSlug}_" . now()->format('Ymd_His') . '.csv';
+
+        $tmpCsv = tempnam(sys_get_temp_dir(), 'nias_existing_csv_');
+        $out = fopen($tmpCsv, 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM UTF-8
+        fputcsv($out, $header, ',', '"', '\\');
+        foreach ($rows as $row) {
+            fputcsv($out, $row, ',', '"', '\\');
         }
         fclose($out);
 

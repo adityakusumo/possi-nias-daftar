@@ -214,7 +214,7 @@ aria-labelledby="exportExistingModalLabel" aria-hidden="true">
 <div class="d-flex gap-2 ms-auto">
 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
 <button type="submit" class="btn btn-success btn-sm fw-semibold">
-<i class="bi bi-download me-1"></i>Download CSV
+<i class="bi bi-download me-1"></i>Download
 </button>
 </div>
 </div>
@@ -242,10 +242,9 @@ id="fmtCsv" value="csv" checked>
 </div>
 <div class="form-check">
 <input class="form-check-input" type="radio" name="format"
-id="fmtXlsx" value="xlsx" disabled>
-<label class="form-check-label text-muted" for="fmtXlsx">
+id="fmtXlsx" value="xlsx">
+<label class="form-check-label" for="fmtXlsx">
 <i class="bi bi-file-earmark-excel me-1"></i>XLSX
-<span class="badge bg-secondary ms-1">Segera hadir</span>
 </label>
 </div>
 </div>
