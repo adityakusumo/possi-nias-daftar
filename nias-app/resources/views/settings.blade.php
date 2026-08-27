@@ -121,23 +121,13 @@
                                 </div>
                             </div>
 
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="bi bi-save me-2"></i>Simpan Semua Perubahan NIAS
-                                </button>
-                            </div>
-                        </form>
-
-                    {{-- Form Tarif NIAS (sibling, BUKAN nested) --}}
-                    <form action="{{ route('settings.tarif.save') }}" method="POST">
-                        @csrf
                         <div class="card border shadow-sm mb-4">
                             <div class="card-header bg-light fw-bold">
                                 <i class="bi bi-cash-coin me-2"></i>Tarif Pendaftaran NIAS
                             </div>
                             <div class="card-body">
                                 <div class="row g-3">
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label small fw-bold">Biaya Pendaftaran Baru</label>
                                         <div class="input-group">
                                             <span class="input-group-text">Rp</span>
@@ -145,7 +135,7 @@
                                                    value="{{ $tarifNias['baru'] ?? 60000 }}" min="0">
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label small fw-bold">Biaya Update / Perpanjang</label>
                                         <div class="input-group">
                                             <span class="input-group-text">Rp</span>
@@ -153,14 +143,15 @@
                                                    value="{{ $tarifNias['update'] ?? 30000 }}" min="0">
                                         </div>
                                     </div>
-                                    <div class="col-md-4 d-flex align-items-end">
-                                        <button type="submit" class="btn btn-primary w-100">
-                                            <i class="bi bi-save me-1"></i>Simpan Tarif
-                                        </button>
-                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save me-2"></i>Simpan Semua Perubahan NIAS
+                        </button>
+                    </div>
                     </form>
                     </div>
 

@@ -98,6 +98,8 @@ class SettingController extends Controller
         $request->validate([
             'nias_open_date'  => 'nullable|date',
             'nias_close_date' => 'nullable|date|after_or_equal:nias_open_date',
+            'biaya_baru'      => 'nullable|integer|min:0',
+            'biaya_update'    => 'nullable|integer|min:0',
         ], [
             'nias_close_date.after_or_equal' => 'Tanggal tutup harus sama atau setelah tanggal buka.',
         ]);
@@ -105,18 +107,24 @@ class SettingController extends Controller
         AppSetting::set('nias_open_date',  $request->nias_open_date);
         AppSetting::set('nias_close_date', $request->nias_close_date);
 
-        // Simpan batas akun per club
-        $allClubs = array_keys(Nias::$clubLookup);
-        $map = [];
-        foreach ($allClubs as $club) {
-            $key = 'max_' . md5($club); // key unik per club di form
-            if ($request->filled($key)) {
-                $map[$club] = (int) $request->input($key);
+        // Simpan batas akun per club (field: max_accounts[NAMA CLUB])
+        $map = json_decode(AppSetting::get('nias_max_accounts_per_club', '{}'), true) ?? [];
+        foreach ($request->input('max_accounts', []) as $club => $val) {
+            if ($val !== '' && $val !== null) {
+                $map[$club] = (int) $val;
             }
         }
         AppSetting::set('nias_max_accounts_per_club', json_encode($map));
 
-        return redirect()->route('settings')->with('success', 'Setting NIAS berhasil disimpan.');
+        // Simpan tarif NIAS (satu tombol simpan)
+        if ($request->filled('biaya_baru')) {
+            MstTarifNias::where('tipe', 'baru')->update(['biaya' => (int) $request->biaya_baru]);
+        }
+        if ($request->filled('biaya_update')) {
+            MstTarifNias::where('tipe', 'update')->update(['biaya' => (int) $request->biaya_update]);
+        }
+
+        return redirect()->route('settings', ['tab' => 'nias'])->with('success', 'Setting NIAS berhasil disimpan.');
     }
 
     // ── Reset jadwal NIAS (tutup pendaftaran) ─────────────────────
