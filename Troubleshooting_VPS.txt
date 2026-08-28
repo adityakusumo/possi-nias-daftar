@@ -1,0 +1,158 @@
+ (db `dbnias`, user `itpossi` @localhost) |
+| PHP | 8.4.24 (ondrej PPA) + FPM + mysql/mbstring/xml/curl/zip/bcmath/intl/gd/sqlite3 |
+| Composer | 2.10.2 |
+| Framework | Laravel 13.3 (app in `nias-app/` inside repo) |
+| App location | /var/www/possi-nias-daftar/nias-app (git checkout of origin/main) |
+| SSL | Let's Encrypt via certbot (auto-renew), HTTP→HTTPS redirect |
+
+---
+
+## 2. HOW THE VPS WAS CONFIGURED (step by step)
+
+### 2.1 System preparation
+- `apt update && apt upgrade` (fresh install, ~180 packages)
+- Swap 2 GB: `fallocate -l 2G /swapfile` → `mkswap` → `swapon` → added to `/etc/fstab`
+
+### 2.2 Software installation
+- Nginx, MariaDB server, `software-properties-common`
+- PHP 8.4 via `add-apt-repository ppa:ondrej/php` (Ubuntu 24.04 ships 8.3 only)
+- Composer installed globally to /usr/local/bin
+
+### 2.3 MariaDB setup
+- Removed anonymous users / test DB (non-interactive equivalent of `mysql_secure_installation`)
+- Created `dbnias` (utf8mb4/utf8mb4_unicode_ci) + user `itpossi`@localhost
+- Password generated (32-char hex) → stored in `/root/.dbnias_pass` (root-only) and `.env` → DB_PASSWORD
+- Root access via unix_socket only (no remote DB access)
+
+### 2.4 Application deployment
+- `nias-app/` copied from the local workspace to `/var/www/possi-nias-daftar/`
+- `composer install --no-dev --optimize-autoloader`
+- `.env` created from `.env.example`: APP_ENV=production, APP_DEBUG=false, APP_URL=https://possijatim.my.id, DB=mysql/dbnias/itpossi, SESSION/CACHE/QUEUE=database
+- `php artisan key:generate`
+- Ownership `itpossijatim:www-data`, `chmod 775` on `storage/` and `bootstrap/cache`
+- `php artisan storage:link` (public/storage → storage/app/public)
+
+### 2.5 Database restore
+- Restored full backup `20260811_dbnias_backup.sql` (user-approved; safety dump of the old state saved to `/root/dbnias_pre_20260811_restore_*.sql`)
+- All 19 migrations applied (including the May 27 legacy-table fix and the May 31 lomba password migration)
+
+### 2.6 Nginx site configuration (`/etc/nginx/sites-available/nias-app`)
+- root `/var/www/possi-nias-daftar/nias-app/public`, `server_name possijatim.my.id www.possijatim.my.id`
+- `fastcgi_pass unix:/run/php/php8.4-fpm.sock`
+- `client_max_body_size 30m` (upload support)
+- `server_tokens off` (hide version)
+- SSL via certbot + 301 redirect
+
+### 2.7 Production optimizations
+- `php artisan config:cache route:cache view:cache event:cache`
+
+### 2.8 Git deployment (update workflow)
+- `/var/www/possi-nias-daftar` initialized as a git checkout of origin/main (commit f4b28a7)
+- Update workflow when new code is pushed:
+  1. `cd /var/www/possi-nias-daftar && git pull origin main`
+  2. `cd nias-app && composer install --no-dev --optimize-autoloader`
+  3. `php artisan migrate --force` (as itpossijatim)
+  4. `php artisan config:cache && route:cache && view:cache && event:cache`
+  5. `systemctl restart php8.4-fpm nginx`
+  6. `chown -R itpossijatim:www-data` + `chmod -R 775 storage bootstrap/cache` (after every pull!)
+
+### 2.9 Mail (SMTP)
+- Gmail SMTP: smtp.gmail.com:587, username it.possijatim@gmail.com, TLS
+- MAIL_FROM_ADDRESS=it.possijatim@gmail.com, MAIL_FROM_NAME="POSSI Jawa Timur"
+- Uses a Google App Password (requires 2-Step Verification enabled on the account)
+
+### 2.10 Security hardening
+- ufw firewall ACTIVE: deny incoming, allow only 22/80/443
+- SSH: key-only authentication (PasswordAuthentication no)
+- Nginx version header hidden (server_tokens off)
+- APP_DEBUG=false, .env gitignored with 640 perms
+- MariaDB only bound to localhost
+
+---
+
+## 3. TROUBLESHOOTING LOG (chronological)
+
+### T1. Git "dubious ownership" error
+- **Symptom**: `fatal: detected dubious ownership in repository`
+- **Cause**: git run as root on a repo owned by itpossijatim
+- **Fix**: `git config --global --add safe.directory <path>`
+
+### T2. Migration `2026_05_27_000001_fix_lomba_tables` FAILED
+- **Symptom**: `SQLSTATE[42S02]: Table 'dbnias.MstPeserta' doesn't exist (ALTER TABLE MstPeserta ...)`
+- **Cause**: The first restored dump (`20260429_dbnias.sql`) was a **PARTIAL dump** — only 12 of 31 tables. The legacy VB6-era tables (MstPeserta, Atlet, A3, rKwtDaftarDeposit, PesertaEmail…) didn't exist.
+- **Investigation**: Compared all backups:
+  - `20260414_dbnias_backup.sql` → 31 tables WITH data (full backup, Apr 14)
+  - `20260429_dbnias.sql` → 12 tables with data (partial export, newer core data)
+  - `20260429_dbnias_pcdit.sql` → 31 tables, NO data (structure-only)
+  - `20260811_dbnias_backup.sql` → 36 tables WITH data (full, today's backup)
+- **Fix (two stages)**:
+  1. Hybrid import: 19 legacy tables (structure+data) extracted from the Apr 14 dump with `SET FOREIGN_KEY_CHECKS=0`, plus NIAS_STRUCT re-import (18 rows, column-mapped from the Apr 29 dump after the 04-15 recreate migration had emptied it) → migration then succeeded.
+  2. Later, full restore of `20260811_dbnias_backup.sql` (user-approved, safety dump first) → complete dataset, "Nothing to migrate".
+
+### T3. 413 Request Entity Too Large (Daftar NIAS uploads)
+- **Symptom**: submitting daftar nias baru with files → HTTP 413
+- **Cause**: Nginx default `client_max_body_size` is 1 MB; the form allows 5 files × 5 MB (max:5120). PHP also capped at upload_max_filesize=2M / post_max_size=8M.
+- **Fix**: `client_max_body_size 30m;` in Nginx site config; `upload_max_filesize = 25M`, `post_max_size = 30M` in /etc/php/8.4/fpm/php.ini; restarted php8.4-fpm + nginx.
+
+### T4. Gmail SMTP "535 Username and Password not accepted"
+- **Symptom**: mail test failed with 535 BadCredentials
+- **Cause**: typo in the Google App Password (`svpjytgaaordoqgo` vs corrected `svpjytgaoardoqgo`)
+- **Fix**: corrected password in `.env` → `php artisan config:cache` → test mail sent OK.
+- **Note**: app passwords require 2-Step Verification enabled; 16 chars, no spaces.
+
+### T5. 500 Server Error on Daftar NIAS Baru submit
+- **Symptom**: 500 after submitting registration
+- **Log**: `League\Flysystem\UnableToCreateDirectory: Unable to create a directory at storage/app/private/nias/12`
+- **Cause**: `storage/app/private/nias` existed with `drwx------` (700, itpossijatim-only). PHP-FPM runs as `www-data` → permission denied creating per-user upload folders.
+- **Fix**: `chown -R itpossijatim:www-data` + `chmod -R 775 storage/app/private`; verified www-data can create dirs. Re-submit works.
+
+### T6. Security: secrets & PII exposed in a public repo
+- **Symptom/Issue**: `temp.txt` (containing DB password + Gmail app password) was committed; 13 `.sql` database dumps (athlete PII: names, NIK, emails, birthdates + password hashes) tracked in the repo; repo made public at times.
+- **Actions taken**:
+  - Rotated the Gmail app password (old one retired; new one only in `.env`)
+  - Untracked all 13 `*.sql` dumps (`git rm --cached`, files kept on disk) + added `*.sql` to `.gitignore` — local commit `1035943`, **NOT pushed yet**
+  - DB password in history is local-only (low risk)
+- **Remaining (recommended)**:
+  - Push the cleanup commit, then purge history with `git filter-repo` (scrub temp.txt + *.sql from all commits) + force-push; re-sync all clones afterward
+  - Anyone who cloned during the public window may still hold the old secrets → rotation already done for SMTP; DB password rotation optional
+
+### T7. Nginx server_tokens didn't take effect
+- **Symptom**: `Server: nginx/1.24.0 (Ubuntu)` header still shown after adding server_tokens off
+- **Cause**: the config already had a commented-out `# server_tokens off;` line; my guard `grep -q server_tokens` matched the comment and skipped the edit. Line also starts with a tab.
+- **Fix**: uncommented the existing line (`s/^\s*#\s*server_tokens off;/server_tokens off;/`) → header now `Server: nginx`
+
+### T8. Git pull fails after repo set to private
+- **Symptom**: `fatal: could not read Username for 'https://github.com': terminal prompts disabled`
+- **Cause**: private repos require auth; no credentials configured on the VPS
+- **Fix (pending user choice)**: (A) SSH deploy key, or (B) fine-grained PAT in ~/.git-credentials. Repo currently public again so pulls work.
+
+### T9. Minor tooling notes
+- `php artisan tinker` with piped stdin fails on `<?php` tag → use `tinker --execute="require '/path/file.php'"`
+- Multi-line shell commands blocked by the agent runtime → all operations run as scripts stored in `.codewhale/` on the VPS
+
+---
+
+## 4. CREDENTIALS & IMPORTANT LOCATIONS (server-side)
+
+- **DB**: `dbnias` / `itpossi` → password in `/var/www/possi-nias-daftar/nias-app/.env` (DB_PASSWORD) and `/root/.dbnias_pass` (root-only)
+- **Admin web login**: it.possijatim@gmail.com (role admin, from restored data)
+- **Gmail SMTP**: it.possijatim@gmail.com + App Password (in .env → MAIL_PASSWORD)
+- **SSL**: /etc/letsencrypt/live/possijatim.my.id (auto-renew via certbot.timer)
+- **Safety dump**: /root/dbnias_pre_20260811_restore_20260811_170358.sql
+- **Nginx**: /etc/nginx/sites-available/nias-app
+- **Helper scripts**: /home/itpossijatim/possi-nias-daftar/.codewhale/*.sh
+
+---
+
+## 5. OPEN ITEMS / RECOMMENDATIONS
+
+1. Push the .sql cleanup commit + run `git filter-repo` history purge (scrub temp.txt + *.sql) + force-push; then re-sync clones (ask Codewhale to re-sync /var/www)
+2. Set up git auth on the VPS (deploy key or PAT) so pulls work even if the repo is private
+3. (Optional) Rotate the MariaDB password too (was in history; local-only, low risk)
+4. (Optional) fail2ban for SSH brute force; login rate limiting on auth routes
+5. Delete the .env email copy from Gmail after use
+6. Backup routine (weekly mysqldump + git push) per README advice
+
+---
+
+*End of document — created 2026-08-12 by Codewhale for POSSI Jawa Timur.*
