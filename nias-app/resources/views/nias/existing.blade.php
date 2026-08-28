@@ -235,14 +235,14 @@ Export mengikuti filter club &amp; pencarian di halaman ini.
 <div class="d-flex gap-4">
 <div class="form-check">
 <input class="form-check-input" type="radio" name="format"
-id="fmtCsv" value="csv" checked>
+id="fmtCsv" value="csv">
 <label class="form-check-label" for="fmtCsv">
 <i class="bi bi-filetype-csv me-1"></i>CSV
 </label>
 </div>
 <div class="form-check">
 <input class="form-check-input" type="radio" name="format"
-id="fmtXlsx" value="xlsx">
+id="fmtXlsx" value="xlsx" checked>
 <label class="form-check-label" for="fmtXlsx">
 <i class="bi bi-file-earmark-excel me-1"></i>XLSX
 </label>

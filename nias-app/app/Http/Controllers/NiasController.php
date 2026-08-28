@@ -506,8 +506,8 @@ class NiasController extends Controller
     {
         $nias = Nias::findOrFail($id);
         $nias->update(['STATUS' => 1]); // 1 = disetujui
-        return redirect()->route('nias.show', $id)
-            ->with('success', "Data {$nias->NAMA} berhasil di-ACC.");
+        return redirect()->back()
+            ->with('success', "Data {$nias->NAMA} berhasil di-ACC. Status menjadi DISETUJUI.");
     }
 
     // -------------------------------------------------------------------------
@@ -518,9 +518,9 @@ class NiasController extends Controller
         $nias = Nias::findOrFail($id);
         $nias->update(['STATUS' => 0]); // 0 = ditolak/expired
         $alasan = $request->input('alasan', '');
-        $msg = "Data {$nias->NAMA} ditolak.";
+        $msg = "Data {$nias->NAMA} ditolak. Status menjadi DITOLAK.";
         if ($alasan) $msg .= " Alasan: {$alasan}";
-        return redirect()->route('nias.show', $id)->with('error', $msg);
+        return redirect()->back()->with('error', $msg);
     }
 
     // -------------------------------------------------------------------------
@@ -913,7 +913,7 @@ class NiasController extends Controller
         $namaclub = $user->namaclub;
 
         // Format export: CSV atau XLSX (PhpSpreadsheet — gratis, lisensi MIT)
-        $format = $request->get('format', 'csv');
+        $format = $request->get('format', 'xlsx');
         if (!in_array($format, ['csv', 'xlsx'])) {
             return back()->with('error', 'Format export tidak didukung.');
         }
