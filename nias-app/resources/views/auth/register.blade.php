@@ -189,6 +189,11 @@
                 <div id="pwdMatchMsg" class="form-text small"></div>
             </div>
 
+            <div class="alert alert-warning py-2 small mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Akun pelatih dibatasi hanya 2 akun per club.
+            </div>
+
             <button type="submit" class="btn btn-possi w-100 py-2" id="btnDaftar">
                 <i class="bi bi-person-check me-1"></i>Daftar
             </button>

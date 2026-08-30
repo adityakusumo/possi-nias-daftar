@@ -75,6 +75,46 @@ class NiasController extends Controller
         $buktiPath  = $user->bukti_transfer_path ?? null;
         $hasBukti   = $buktiPath && Storage::disk('local')->exists($buktiPath);
 
+        $financeSort = $request->input('finance_sort', 'date');
+        $financeDir  = strtolower($request->input('finance_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $financeClub = $request->input('finance_club');
+        $financeRole = $request->input('finance_role');
+
+        $financialQuery = \App\Models\User::whereNotNull('bukti_transfer_path')
+            ->where('bukti_transfer_path', '!=', '')
+            ->where(function ($query) {
+                $query->where('role', 'regular')->orWhere('role', 'admin');
+            });
+
+        if ($financeClub) {
+            $financialQuery->where('namaclub', $financeClub);
+        }
+
+        if ($financeRole && in_array($financeRole, ['regular', 'admin'], true)) {
+            $financialQuery->where('role', $financeRole);
+        }
+
+        if ($financeSort === 'club') {
+            $financialQuery->orderByRaw('LOWER(COALESCE(namaclub, "")) ' . $financeDir)
+                ->orderBy('updated_at', $financeDir);
+        } else {
+            $financialQuery->orderBy('updated_at', $financeDir);
+        }
+
+        $financialRecords = $financialQuery->get()->filter(function ($u) {
+            $path = $u->bukti_transfer_path ?? null;
+            return $path && Storage::disk('local')->exists($path);
+        });
+
+        $financeClubOptions = \App\Models\User::query()
+            ->whereIn('role', ['regular', 'admin'])
+            ->whereNotNull('namaclub')
+            ->where('namaclub', '!=', '')
+            ->distinct()
+            ->orderByRaw('LOWER(namaclub) ASC')
+            ->pluck('namaclub');
+
         // ── Data untuk tab Daftar NIAS Baru (create form) ─────────
         $domisilis = array_keys(Nias::$domisiliLookup);
         sort($domisilis);
@@ -113,7 +153,7 @@ class NiasController extends Controller
 
         return view('nias.index', compact(
             'records', 'sentRecords', 'totalSemua', 'totalBaru', 'totalUpdate',
-            'isNiasOpen', 'tarifNias', 'hasBukti',
+            'isNiasOpen', 'tarifNias', 'hasBukti', 'financialRecords', 'financeSort', 'financeDir', 'financeClub', 'financeRole', 'financeClubOptions',
             'domisilis', 'userClub', 'allClubs', 'userRole', 'expiredDate',
             'existingNias', 'existingNames', 'existingNiasMyClub', 'existingNamesMyClub'
         ));
@@ -668,6 +708,101 @@ class NiasController extends Controller
         return response()->download($tmpZip, "{$baseFilename}.zip", [
             'Content-Type' => 'application/zip',
         ])->deleteFileAfterSend(true);
+    }
+
+    // -------------------------------------------------------------------------
+    // EXPORT BUKTI TRANSFER — ZIP semua file bukti transfer dengan ringkasan
+    // -------------------------------------------------------------------------
+    public function exportBuktiTransferZip(Request $request)
+    {
+        if (Auth::user()->role !== 'admin') {
+            abort(403, 'Hanya admin yang dapat mengekspor bukti transfer.');
+        }
+
+        $query = \App\Models\User::query()
+            ->whereIn('role', ['regular', 'admin'])
+            ->whereNotNull('bukti_transfer_path')
+            ->where('bukti_transfer_path', '!=', '');
+
+        if ($club = $request->input('finance_club')) {
+            $query->where('namaclub', $club);
+        }
+
+        if ($role = $request->input('finance_role')) {
+            $query->where('role', $role);
+        }
+
+        $users = $query->orderBy('updated_at', 'desc')->get();
+        $eligibleUsers = $users->filter(function ($user) {
+            $path = $user->bukti_transfer_path ?? null;
+            return $path && Storage::disk('local')->exists($path);
+        });
+
+        if ($eligibleUsers->isEmpty()) {
+            return redirect()->route('nias.index')->with('error', 'Tidak ada bukti transfer yang bisa diekspor dengan filter saat ini.');
+        }
+
+        $timestamp = now()->format('Ymd_His');
+        $tmpZip = tempnam(sys_get_temp_dir(), 'bukti_zip_') . '.zip';
+        $zip = new \ZipArchive();
+
+        if ($zip->open($tmpZip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return redirect()->route('nias.index')->with('error', 'Gagal membuat file ZIP bukti transfer.');
+        }
+
+        $summaryRows = [[
+            'No',
+            'Nama User',
+            'Email',
+            'Club',
+            'Role',
+            'Tanggal Upload',
+            'Jumlah NIAS Baru',
+            'Jumlah NIAS Update',
+            'Total NIAS',
+            'File Bukti Transfer',
+        ]];
+
+        foreach ($eligibleUsers as $index => $user) {
+            $buktiPath = $user->bukti_transfer_path;
+            $storagePath = Storage::disk('local')->path($buktiPath);
+            $ext = pathinfo($storagePath, PATHINFO_EXTENSION);
+            $clubSlug = preg_replace('/[^A-Za-z0-9_]/', '_', $user->namaclub ?? 'club');
+            $safeName = sprintf('%02d_%s_%s', $index + 1, $clubSlug, preg_replace('/[^A-Za-z0-9_]/', '_', ($user->nama ?? 'user')));
+            $zip->addFile($storagePath, 'bukti_transfer/' . $safeName . '.' . $ext);
+
+            $newCount = \App\Models\Nias::where('user_id', $user->id)->where('is_sent', false)->where('is_update', false)->count();
+            $updateCount = \App\Models\Nias::where('user_id', $user->id)->where('is_sent', false)->where('is_update', true)->count();
+
+            $summaryRows[] = [
+                $index + 1,
+                $user->nama ?? '-',
+                $user->email ?? '-',
+                $user->namaclub ?? '-',
+                $user->role === 'admin' ? 'Admin' : 'Regular',
+                $user->updated_at ? $user->updated_at->format('d/m/Y H:i') : '-',
+                $newCount,
+                $updateCount,
+                $newCount + $updateCount,
+                $safeName . '.' . $ext,
+            ];
+        }
+
+        $tmpCsv = tempnam(sys_get_temp_dir(), 'bukti_summary_');
+        $out = fopen($tmpCsv, 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        foreach ($summaryRows as $row) {
+            fputcsv($out, $row, ';');
+        }
+        fclose($out);
+
+        $zip->addFile($tmpCsv, 'ringkasan_bukti_transfer.csv');
+        $zip->close();
+        @unlink($tmpCsv);
+
+        $filename = 'BuktiTransfer_' . now()->format('Ymd_His') . '.zip';
+
+        return response()->download($tmpZip, $filename, ['Content-Type' => 'application/zip'])->deleteFileAfterSend(true);
     }
 
     // -------------------------------------------------------------------------

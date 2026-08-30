@@ -26,6 +26,14 @@
             <i class="bi bi-arrow-repeat me-1"></i>Update NIAS
         </button>
     </li>
+    @if(Auth::user()->role === 'admin')
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="tab-keuangan" data-bs-toggle="tab"
+                data-bs-target="#panel-keuangan" type="button" role="tab" aria-controls="panel-keuangan" aria-selected="false">
+            <i class="bi bi-wallet2 me-1"></i>Catatan Keuangan
+        </button>
+    </li>
+    @endif
 </ul>
 
 <div class="tab-content" id="niasTabsContent">
@@ -376,6 +384,9 @@
                       action="{{ route('nias.destroy-sent-all') }}" style="display:none;">
                     @csrf @method('DELETE')
                 </form>
+                {{-- Hidden forms untuk ACC / Reject dari tabel terkirim (admin) --}}
+                <form id="form_acc_sent" method="POST" style="display:none;">@csrf</form>
+                <form id="form_reject_sent" method="POST" style="display:none;">@csrf</form>
                 @endif
 
                 <div class="table-responsive">
@@ -434,8 +445,17 @@
                                         {{ $r->sent_at?->format('d/m/Y H:i') }}
                                     </td>
                                     <td>
-                                        <span class="badge bg-success">
-                                            <i class="bi bi-send-check"></i> TERKIRIM
+                                        @php
+                                            $sentStatus = match((int)$r->STATUS) {
+                                                1 => ['label' => 'DISETUJUI', 'icon' => 'bi-check-circle-fill', 'class' => 'bg-success'],
+                                                2 => ['label' => 'PENDING ACC', 'icon' => 'bi-hourglass-split', 'class' => 'bg-warning text-dark'],
+                                                3 => ['label' => 'TERKIRIM', 'icon' => 'bi-send-check', 'class' => 'bg-info text-dark'],
+                                                0 => ['label' => 'DITOLAK', 'icon' => 'bi-x-circle-fill', 'class' => 'bg-danger'],
+                                                default => ['label' => 'TERKIRIM', 'icon' => 'bi-send-check', 'class' => 'bg-info text-dark'],
+                                            };
+                                        @endphp
+                                        <span class="badge {{ $sentStatus['class'] }}">
+                                            <i class="bi {{ $sentStatus['icon'] }}"></i> {{ $sentStatus['label'] }}
                                         </span>
                                     </td>
                                     <td class="text-center" style="white-space:nowrap">
@@ -443,6 +463,20 @@
                                             title="Detail">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        @if(Auth::user()->role === 'admin' && in_array((int)$r->STATUS, [2, 3]))
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-success py-0"
+                                                title="Terima / ACC — ubah status menjadi DISETUJUI"
+                                                onclick="confirmAccSent('{{ addslashes($r->NAMA) }}', '{{ route('nias.acc', $r->ID) }}')">
+                                            <i class="bi bi-check-circle"></i> ACC
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger py-0"
+                                                title="Tolak / Reject"
+                                                onclick="confirmRejectSent('{{ addslashes($r->NAMA) }}', '{{ route('nias.reject', $r->ID) }}')">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                        @endif
                                         @if(Auth::user()->role === 'admin')
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-danger py-0"
@@ -786,6 +820,108 @@
         </div>
     </div>
 </div>{{-- /panel-update --}}
+
+@if(Auth::user()->role === 'admin')
+<div class="tab-pane fade" id="panel-keuangan" role="tabpanel" aria-labelledby="tab-keuangan">
+    <div class="card page-card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0"><i class="bi bi-wallet2 me-2"></i>Catatan Keuangan</h5>
+            <span class="badge bg-success">{{ $financialRecords->count() }} bukti transfer</span>
+        </div>
+        <div class="card-body p-3">
+            <form method="GET" action="{{ route('nias.index') }}" class="row g-2 align-items-end mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Klub</label>
+                    <select name="finance_club" class="form-select form-select-sm">
+                        <option value="">Semua klub</option>
+                        @foreach($financeClubOptions as $club)
+                            <option value="{{ $club }}" {{ $financeClub === $club ? 'selected' : '' }}>{{ $club }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Role</label>
+                    <select name="finance_role" class="form-select form-select-sm">
+                        <option value="">Semua</option>
+                        <option value="regular" {{ $financeRole === 'regular' ? 'selected' : '' }}>Regular</option>
+                        <option value="admin" {{ $financeRole === 'admin' ? 'selected' : '' }}>Admin</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Urut berdasarkan</label>
+                    <select name="finance_sort" class="form-select form-select-sm">
+                        <option value="date" {{ $financeSort === 'date' ? 'selected' : '' }}>Tanggal upload</option>
+                        <option value="club" {{ $financeSort === 'club' ? 'selected' : '' }}>Nama klub</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Arah</label>
+                    <select name="finance_dir" class="form-select form-select-sm">
+                        <option value="desc" {{ $financeDir === 'desc' ? 'selected' : '' }}>Terbaru dulu</option>
+                        <option value="asc" {{ $financeDir === 'asc' ? 'selected' : '' }}>Terlama dulu</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                    <a href="{{ route('nias.index') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+            <div class="d-flex justify-content-end mb-3">
+                <a href="{{ route('nias.export-bukti-transfer', request()->only(['finance_club','finance_role','finance_sort','finance_dir'])) }}" class="btn btn-success btn-sm">
+                    <i class="bi bi-download me-1"></i>Export ZIP
+                </a>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Nama</th>
+                            <th>Email</th>
+                            <th>Club</th>
+                            <th>Role</th>
+                            <th>Tanggal Upload</th>
+                            <th>Bukti Transfer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($financialRecords as $u)
+                            <tr>
+                                <td>{{ $loop->iteration }}</td>
+                                <td class="fw-semibold">{{ $u->nama ?? '-' }}</td>
+                                <td>{{ $u->email ?? '-' }}</td>
+                                <td>{{ $u->namaclub ?? '-' }}</td>
+                                <td>
+                                    <span class="badge {{ $u->role === 'admin' ? 'bg-dark' : 'bg-primary' }}">
+                                        {{ $u->role === 'admin' ? 'Admin' : 'Regular' }}
+                                    </span>
+                                </td>
+                                <td class="small">
+                                    {{ $u->updated_at ? $u->updated_at->format('d/m/Y H:i') : '-' }}
+                                </td>
+                                <td>
+                                    <a href="{{ route('nias.serve-bukti', $u->id) }}" target="_blank"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye me-1"></i>Lihat
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
+                                    Belum ada bukti transfer yang diupload oleh user.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 </div>{{-- /tab-content --}}
 @endsection
@@ -1199,6 +1335,49 @@
                     if (result.isConfirmed) {
                         const form = document.getElementById('form_delete_one');
                         form.action = url; form.submit();
+                    }
+                });
+            };
+
+            window.confirmAccSent = function (nama, url) {
+                Swal.fire({
+                    title: 'Terima / ACC Data Ini?',
+                    html: 'Data <strong>' + nama + '</strong> akan disetujui.<br>'
+                        + 'Status akan berubah menjadi <span class="badge bg-success">DISETUJUI</span>.',
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonColor: '#198754', cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Ya, ACC!', cancelButtonText: 'Batal',
+                }).then(result => {
+                    if (result.isConfirmed) {
+                        const form = document.getElementById('form_acc_sent');
+                        form.action = url; form.submit();
+                    }
+                });
+            };
+
+            window.confirmRejectSent = function (nama, url) {
+                Swal.fire({
+                    title: 'Tolak / Reject Data Ini?',
+                    html: 'Data <strong>' + nama + '</strong> akan ditolak.<br>'
+                        + 'Status akan berubah menjadi <span class="badge bg-danger">DITOLAK</span>.',
+                    icon: 'warning', showCancelButton: true,
+                    confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Ya, Tolak!', cancelButtonText: 'Batal',
+                    input: 'textarea',
+                    inputPlaceholder: 'Alasan penolakan (opsional)…',
+                    inputAttributes: { rows: 3 },
+                }).then(result => {
+                    if (result.isConfirmed) {
+                        const form = document.getElementById('form_reject_sent');
+                        form.action = url;
+                        const oldInput = form.querySelector('input[name="alasan"]');
+                        if (oldInput) oldInput.remove();
+                        if (result.value) {
+                            const input = document.createElement('input');
+                            input.type = 'hidden'; input.name = 'alasan'; input.value = result.value;
+                            form.appendChild(input);
+                        }
+                        form.submit();
                     }
                 });
             };

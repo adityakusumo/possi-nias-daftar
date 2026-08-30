@@ -140,6 +140,10 @@ Route::middleware('auth')->group(function () {
     })->name('nias.update-data');
     Route::get('/nias/existing', [NiasController::class, 'existing'])->name('nias.existing');
     Route::get('/nias/existing/export', [NiasController::class, 'exportExisting'])->name('nias.existing.export');
+
+    // Keep distinct non-conflicting URIs to avoid collision with /nias/bukti-transfer/{userId}
+    Route::get('/nias/export-bukti-transfer', [NiasController::class, 'exportBuktiTransferZip'])->name('nias.export-bukti-transfer');
+    Route::get('/nias/bukti-transfer/{userId}', [NiasController::class, 'serveBuktiTransfer'])->name('nias.serve-bukti');
     Route::get('/nias/{id}/file/{col}', [NiasController::class, 'serveFile'])->name('nias.file');
 
     // ── Tutorial PDF (harus didaftarkan sebelum /nias/{id}) ────────
@@ -171,5 +175,4 @@ Route::middleware('auth')->group(function () {
     Route::post('/nias/{id}/acc',         [NiasController::class, 'acc'])->name('nias.acc');
     Route::post('/nias/{id}/reject',      [NiasController::class, 'reject'])->name('nias.reject');
     Route::post('/nias/bukti-transfer',   [NiasController::class, 'uploadBuktiTransfer'])->name('nias.bukti-transfer');
-    Route::get('/nias/bukti-transfer/{userId}', [NiasController::class, 'serveBuktiTransfer'])->name('nias.serve-bukti');
 });
