@@ -96,7 +96,7 @@ class NiasController extends Controller
         }
 
         if ($financeSort === 'club') {
-            $financialQuery->orderByRaw('LOWER(COALESCE(namaclub, "")) ' . $financeDir)
+            $financialQuery->orderBy('namaclub', $financeDir)
                 ->orderBy('updated_at', $financeDir);
         } else {
             $financialQuery->orderBy('updated_at', $financeDir);
@@ -112,7 +112,7 @@ class NiasController extends Controller
             ->whereNotNull('namaclub')
             ->where('namaclub', '!=', '')
             ->distinct()
-            ->orderByRaw('LOWER(namaclub) ASC')
+            ->orderBy('namaclub', 'asc')
             ->pluck('namaclub');
 
         // ── Data untuk tab Daftar NIAS Baru (create form) ─────────

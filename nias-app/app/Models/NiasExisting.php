@@ -13,6 +13,10 @@ class NiasExisting extends Model
     // Tabel ini read-only dari aplikasi, tidak perlu timestamps
     public $timestamps = false;
 
+    protected $casts = [
+        'NIK' => 'encrypted',
+    ];
+
     protected $fillable = [
         'NAMACLUB', 'NAMA', 'GENDER', 'TPTLAHIR', 'TGLLAHIR', 'NONIAS', 'EXPIRED',
     ];

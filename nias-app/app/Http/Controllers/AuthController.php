@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use App\Models\AppSetting;
 
 class AuthController extends Controller
@@ -82,7 +83,7 @@ class AuthController extends Controller
         $request->validate([
             'nama'                  => 'required|string|max:100',
             'gender'                => 'required|in:L,P',
-            'namaclub'              => 'required|string|max:100',
+            'namaclub'              => ['required', 'string', 'max:100', Rule::in(array_keys(Nias::$clubLookup))],
             'email'                 => 'required|email|max:100|unique:users,email',
             'password'              => 'required|min:8|confirmed',
             'password_confirmation' => 'required',

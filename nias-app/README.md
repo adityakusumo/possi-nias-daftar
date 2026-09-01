@@ -21,6 +21,16 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Security notes
+
+- NIK values in both `NIAS` and `NIAS_STRUCT` are stored as Laravel encrypted
+  payloads using the application `APP_KEY` and the `encrypted` Eloquent cast.
+- Keep `APP_KEY` private and back it up securely. Losing it makes encrypted NIK
+  values unrecoverable. Do not commit `.env` or any file containing `APP_KEY`.
+- The Laravel database account is restricted to application CRUD privileges.
+- Registration and login POST endpoints use Laravel throttling, and club
+  registration is restricted to the approved club lookup.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.

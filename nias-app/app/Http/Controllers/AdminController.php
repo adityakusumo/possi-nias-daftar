@@ -19,7 +19,7 @@ class AdminController extends Controller
 
         // Default sort: EXPIRED (terlama di atas), lalu NAMA
         $sortCol = $request->get('sort', 'EXPIRED');
-        $sortDir = $request->get('dir', 'asc');
+        $sortDir = $request->get('dir', 'asc') === 'desc' ? 'desc' : 'asc';
 
         // Validasi kolom sort yang diizinkan
         $allowedSort = ['NAMACLUB', 'NAMA', 'GENDER', 'TPTLAHIR', 'TGLLAHIR', 'NONIAS', 'EXPIRED'];

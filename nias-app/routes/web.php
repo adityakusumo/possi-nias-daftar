@@ -16,9 +16,9 @@ Route::get('/', [WelcomeController::class, 'show'])->name('home');
 
 // ── NIAS Auth (password-based) ──────────────────────────────────
 Route::get('/login', [AuthController::class, 'showLogin'])->name('auth.login.show');
-Route::post('/login', [AuthController::class, 'login'])->name('auth.login');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('auth.login');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('auth.register.show');
-Route::post('/register', [AuthController::class, 'register'])->name('auth.register');
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('auth.register');
 
 // ── Lomba Auth (email + password OR token for new users) ────────
 // Jika fitur lomba dinonaktifkan (config/lomba.php → enabled=false),
@@ -31,13 +31,13 @@ if (!config('lomba.enabled')) {
 }
 Route::get('/lomba/login', [LombaAuthController::class, 'showLogin'])->name('lomba.login');
 Route::post('/lomba/check-email', [LombaAuthController::class, 'checkEmail'])->name('lomba.check-email');
-Route::post('/lomba/login-password', [LombaAuthController::class, 'loginWithPassword'])->name('lomba.login-password');
-Route::post('/lomba/request-token', [LombaAuthController::class, 'requestToken'])->name('lomba.request-token');
+Route::post('/lomba/login-password', [LombaAuthController::class, 'loginWithPassword'])->middleware('throttle:10,1')->name('lomba.login-password');
+Route::post('/lomba/request-token', [LombaAuthController::class, 'requestToken'])->middleware('throttle:5,1')->name('lomba.request-token');
 Route::get('/lomba/verify', [LombaAuthController::class, 'showVerify'])->name('lomba.verify');
 Route::post('/lomba/verify-token', [LombaAuthController::class, 'verifyToken'])->name('lomba.verify-token');
 Route::post('/lomba/resend-token', [LombaAuthController::class, 'resendToken'])->name('lomba.resend-token');
 Route::get('/lomba/register', [LombaAuthController::class, 'showRegister'])->name('lomba.register');
-Route::post('/lomba/register', [LombaAuthController::class, 'register'])->name('lomba.register.save');
+Route::post('/lomba/register', [LombaAuthController::class, 'register'])->middleware('throttle:5,1')->name('lomba.register.save');
 Route::get('/lomba/account', [LombaAuthController::class, 'showAccountSettings'])->name('lomba.account');
 Route::post('/lomba/account/password', [LombaAuthController::class, 'updatePassword'])->name('lomba.account.password');
 Route::post('/lomba/logout', [LombaAuthController::class, 'logout'])->name('lomba.logout');

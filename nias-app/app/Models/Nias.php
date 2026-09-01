@@ -30,6 +30,7 @@ class Nias extends Model
 
     protected $casts = [
         'TGLLAHIR'  => 'date',
+        'NIK'       => 'encrypted',
         'TGLDAFTAR' => 'date',
         'TGLDAFTAR_UPDATE' => 'date',
         'EXPIRED'   => 'date',
