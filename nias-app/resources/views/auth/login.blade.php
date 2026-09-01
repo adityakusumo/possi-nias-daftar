@@ -6,6 +6,7 @@
     <title>Login — NIAS POSSI Jawa Timur</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
         :root { --possi-blue:#003d8f; --possi-gold:#f0a500; }
         body {
@@ -122,6 +123,11 @@
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="remember" name="remember">
                 <label class="form-check-label small" for="remember">Ingat saya</label>
+            </div>
+
+            <div class="mb-3">
+                <div class="cf-turnstile" data-sitekey="{{ config('services.turnstile.site_key') }}"></div>
+                @error('cf-turnstile-response')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <button type="submit" class="btn btn-possi w-100 py-2">

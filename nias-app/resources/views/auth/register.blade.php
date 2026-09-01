@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
         :root { --possi-blue:#003d8f; --possi-gold:#f0a500; }
         body {
@@ -192,6 +193,11 @@
             <div class="alert alert-warning py-2 small mb-3" role="alert">
                 <i class="bi bi-exclamation-triangle me-1"></i>
                 Akun pelatih dibatasi hanya 2 akun per club.
+            </div>
+
+            <div class="mb-3">
+                <div class="cf-turnstile" data-sitekey="{{ config('services.turnstile.site_key') }}"></div>
+                @error('cf-turnstile-response')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
             </div>
 
             <button type="submit" class="btn btn-possi w-100 py-2" id="btnDaftar">

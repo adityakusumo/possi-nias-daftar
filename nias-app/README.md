@@ -25,11 +25,19 @@ Laravel is accessible, powerful, and provides tools required for large, robust a
 
 - NIK values in both `NIAS` and `NIAS_STRUCT` are stored as Laravel encrypted
   payloads using the application `APP_KEY` and the `encrypted` Eloquent cast.
-- Keep `APP_KEY` private and back it up securely. Losing it makes encrypted NIK
-  values unrecoverable. Do not commit `.env` or any file containing `APP_KEY`.
+- Keep `APP_KEY` private and do not commit `.env` or any file containing it.
 - The Laravel database account is restricted to application CRUD privileges.
 - Registration and login POST endpoints use Laravel throttling, and club
   registration is restricted to the approved club lookup.
+- NIAS login and account registration use the Cloudflare Turnstile widget.
+  The browser sends a short-lived `cf-turnstile-response` token, and the
+  server verifies it with Cloudflare before authenticating or creating an
+  account.
+- Configure Turnstile with `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` in
+  the production `.env` file. Never commit either key to Git; the secret key
+  must remain server-side. After changing these values, clear Laravel's
+  configuration cache with `php artisan config:clear` or rebuild it with
+  `php artisan config:cache`.
 
 ## Learning Laravel
 

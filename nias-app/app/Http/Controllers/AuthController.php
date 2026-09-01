@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use App\Models\AppSetting;
 
@@ -30,10 +31,23 @@ class AuthController extends Controller
     // =========================================================================
     public function login(Request $request)
     {
-        $credentials = $request->validate([
+        $validated = $request->validate([
             'email'    => 'required|email',
             'password' => 'required',
+            'cf-turnstile-response' => 'required|string',
+        ], [
+            'cf-turnstile-response.required' => 'Silakan selesaikan verifikasi bahwa Anda bukan robot.',
         ]);
+
+        if (!$this->turnstileIsValid($request)) {
+            return back()->withErrors(['cf-turnstile-response' => 'Verifikasi keamanan gagal. Silakan coba lagi.'])
+                ->withInput(['email' => $validated['email']]);
+        }
+
+        $credentials = [
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+        ];
 
         // Cek apakah ada user dengan email ini
         $userExists = User::where('email', $request->email)->exists();
@@ -87,6 +101,7 @@ class AuthController extends Controller
             'email'                 => 'required|email|max:100|unique:users,email',
             'password'              => 'required|min:8|confirmed',
             'password_confirmation' => 'required',
+            'cf-turnstile-response' => 'required|string',
         ], [
             'nama.required'      => 'Nama lengkap wajib diisi.',
             'gender.required'    => 'Jenis kelamin wajib dipilih.',
@@ -97,7 +112,13 @@ class AuthController extends Controller
             'password.required'  => 'Password wajib diisi.',
             'password.min'       => 'Password minimal 8 karakter.',
             'password.confirmed' => 'Konfirmasi password tidak cocok.',
+            'cf-turnstile-response.required' => 'Silakan selesaikan verifikasi bahwa Anda bukan robot.',
         ]);
+
+        if (!$this->turnstileIsValid($request)) {
+            return back()->withErrors(['cf-turnstile-response' => 'Verifikasi keamanan gagal. Silakan coba lagi.'])
+                ->withInput($request->except('password', 'password_confirmation', 'cf-turnstile-response'));
+        }
 
         // Cek batas akun per club sebelum buat akun baru
         $namaclub   = $request->namaclub;
@@ -124,6 +145,18 @@ class AuthController extends Controller
 
         return redirect()->route('nias.index')
         ->with('success', 'Akun berhasil dibuat! Selamat datang, ' . $user->nama . '.');
+    }
+
+    private function turnstileIsValid(Request $request): bool
+    {
+        $secret = config('services.turnstile.secret_key');
+        $token = $request->input('cf-turnstile-response');
+        if (!$secret || !$token) return false;
+        $response = Http::asForm()->timeout(5)->post(
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+            ['secret' => $secret, 'response' => $token, 'remoteip' => $request->ip()]
+        );
+        return $response->successful() && $response->json('success') === true;
     }
 
     // =========================================================================
