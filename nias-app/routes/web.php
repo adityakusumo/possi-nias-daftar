@@ -174,5 +174,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/nias/send-email', [NiasController::class, 'sendEmail'])->name('nias.send-email');
     Route::post('/nias/{id}/acc',         [NiasController::class, 'acc'])->name('nias.acc');
     Route::post('/nias/{id}/reject',      [NiasController::class, 'reject'])->name('nias.reject');
+    Route::post('/nias/{id}/resolve-duplicate', [NiasController::class, 'resolveDuplicate'])->name('nias.resolve-duplicate');
     Route::post('/nias/bukti-transfer',   [NiasController::class, 'uploadBuktiTransfer'])->name('nias.bukti-transfer');
 });

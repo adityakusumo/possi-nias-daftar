@@ -6,8 +6,15 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Detail Data NIAS</h5>
         <div class="d-flex gap-2 flex-wrap">
-            {{-- Tombol Acc / Reject — hanya admin, hanya saat STATUS pending (2) atau terkirim (3) --}}
-            @if(Auth::user()->role === 'admin' && in_array((int)$nias->STATUS, [2, 3]))
+            {{-- Tombol Acc / Reject — hanya admin, hanya saat STATUS pending (2) atau terkirim (3).
+                 Saat berstatus Caution (duplikat), ACC/Reject disembunyikan: admin wajib
+                 selesaikan dulu lewat modal pemeriksaan duplikat. --}}
+            @if(Auth::user()->role === 'admin' && $nias->has_possible_duplicate)
+            <button type="button" class="btn btn-warning btn-sm"
+                    onclick="openDupModal()">
+                <i class="bi bi-exclamation-triangle me-1"></i>Selesaikan Duplikat
+            </button>
+            @elseif(Auth::user()->role === 'admin' && in_array((int)$nias->STATUS, [2, 3]))
             <button type="button" class="btn btn-success btn-sm"
                     onclick="confirmAcc()">
                 <i class="bi bi-check-circle me-1"></i>Terima / ACC
@@ -44,18 +51,47 @@
                     2 => ['label' => 'PENDING ACC', 'class' => 'bg-warning text-dark'],
                     3 => ['label' => 'SUDAH DIKIRIM', 'class' => 'bg-info text-dark'],
                     0 => ['label' => 'EXPIRED', 'class' => 'bg-danger'],
+                    4 => ['label' => 'DIBATALKAN (DUPLIKAT)', 'class' => 'bg-dark'],
                     default => ['label' => 'TIDAK DIKETAHUI', 'class' => 'bg-secondary'],
                 };
             @endphp
             <span class="badge {{ $statusLabel['class'] }} fs-6 px-3 py-2">
                 <i class="bi bi-circle-fill me-1 small"></i>{{ $statusLabel['label'] }}
             </span>
+            @if($nias->has_possible_duplicate)
+                <span class="badge badge-caution ms-2 fs-6 px-3 py-2" title="Terindikasi duplikat dengan atlet yang sudah terdaftar di database NIAS">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>CAUTION
+                </span>
+            @endif
             @if($nias->is_update)
                 <span class="badge bg-info text-dark ms-2 fs-6 px-3 py-2">
                     <i class="bi bi-arrow-repeat me-1"></i>UPDATE / PERPANJANG
                 </span>
             @endif
         </div>
+
+        {{-- Peringatan Caution: admin → modal resolusi (auto-open via JS); pelatih → info menunggu admin --}}
+        @if($nias->has_possible_duplicate)
+            @if(Auth::user()->role === 'admin')
+                <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+                    <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+                    <div>
+                        <strong>Data berstatus CAUTION.</strong> Sistem menemukan atlet dengan nama,
+                        jenis kelamin, dan tanggal lahir yang sama di database NIAS.
+                        Periksa kandidat duplikat di bawah lalu pilih keputusan.
+                    </div>
+                </div>
+            @else
+                <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+                    <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+                    <div>
+                        <strong>Data berstatus CAUTION.</strong> Terindikasi ada atlet dengan data
+                        yang sama di database NIAS. Pendaftaran ini menunggu pemeriksaan admin
+                        untuk memastikan bukan duplikat.
+                    </div>
+                </div>
+            @endif
+        @endif
 
         <div class="row g-4">
 
@@ -268,6 +304,104 @@
         </div>{{-- end .row --}}
     </div>
 </div>
+
+{{-- ═══ Modal Pemeriksaan Duplikat (Caution) — khusus admin ═══ --}}
+@if(Auth::user()->role === 'admin' && $nias->has_possible_duplicate)
+<div class="modal fade" id="modalDupCheck" tabindex="-1" aria-labelledby="modalDupCheckLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-warning bg-gradient">
+                <h5 class="modal-title fw-bold" id="modalDupCheckLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Pemeriksaan Duplikat — CAUTION
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-light border small mb-3">
+                    <i class="bi bi-person-badge me-1"></i>
+                    Registrasi ini: <strong>{{ $nias->NAMA }}</strong> ({{ $nias->GENDER === 'L' ? 'Laki-laki' : 'Perempuan' }},
+                    lahir {{ $nias->TGLLAHIR?->format('d/m/Y') ?? '—' }}),
+                    klub <strong>{{ $nias->NAMACLUB }}</strong>.
+                </div>
+
+                @if($possibleDuplicates->isNotEmpty())
+                    <p class="text-muted small mb-2">
+                        Kandidat duplikat berikut ditemukan di database NIAS:
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nama</th>
+                                    <th>L/P</th>
+                                    <th>Klub Terkini</th>
+                                    <th>Tgl Lahir</th>
+                                    <th>Expired NIAS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($possibleDuplicates as $c)
+                                    @php
+                                        $gCand = in_array(strtoupper((string)$c->GENDER), ['PA', 'L'], true) ? 'L' : 'P';
+                                        $dobCand = $c->TGLLAHIR ? \Carbon\Carbon::parse($c->TGLLAHIR) : null;
+                                        $expCand = $c->EXPIRED ? \Carbon\Carbon::parse($c->EXPIRED) : null;
+                                    @endphp
+                                    <tr>
+                                        <td class="fw-semibold">
+                                            {{ $c->NAMA }}
+                                            @if($c->NONIAS)
+                                                <div class="small text-muted"><code>{{ $c->NONIAS }}</code></div>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($gCand === 'L')
+                                                <span class="badge bg-primary">L</span>
+                                            @else
+                                                <span class="badge bg-danger">P</span>
+                                            @endif
+                                        </td>
+                                        <td class="small">{{ $c->NAMACLUB ?? '—' }}</td>
+                                        <td class="small">{{ $dobCand?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="small {{ $expCand && $expCand->isPast() ? 'text-danger' : '' }}">
+                                            {{ $expCand?->format('d/m/Y') ?? '—' }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="alert alert-secondary small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Saat ini tidak ada kandidat yang cocok di database NIAS (kemungkinan data
+                        master berubah). Jika Anda yakin data ini bukan duplikat, pilih
+                        <strong>"Bukan Duplikat"</strong> untuk menghapus flag CAUTION.
+                    </div>
+                @endif
+            </div>
+            <div class="modal-footer d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary me-auto" data-bs-dismiss="modal">
+                    <i class="bi bi-arrow-left me-1"></i>Periksa Nanti
+                </button>
+                <button type="button" class="btn btn-outline-success" onclick="resolveDup('not_duplicate')">
+                    <i class="bi bi-check-lg me-1"></i>Bukan Duplikat
+                </button>
+                <button type="button" class="btn btn-success" onclick="resolveDup('not_duplicate_acc')">
+                    <i class="bi bi-check-circle me-1"></i>Bukan Duplikat &amp; Langsung ACC
+                </button>
+                <button type="button" class="btn btn-danger" onclick="resolveDup('duplicate')">
+                    <i class="bi bi-x-octagon me-1"></i>Duplikat — Batalkan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Hidden forms resolusi duplikat (admin) --}}
+<form id="form_dup_not_dup"     method="POST" action="{{ route('nias.resolve-duplicate', $nias->ID) }}" style="display:none">@csrf<input type="hidden" name="decision" value="not_duplicate"></form>
+<form id="form_dup_not_dup_acc" method="POST" action="{{ route('nias.resolve-duplicate', $nias->ID) }}" style="display:none">@csrf<input type="hidden" name="decision" value="not_duplicate_acc"></form>
+<form id="form_dup_duplicate"   method="POST" action="{{ route('nias.resolve-duplicate', $nias->ID) }}" style="display:none">@csrf<input type="hidden" name="decision" value="duplicate"></form>
+@endif
 @endsection
 
 @push('scripts')
@@ -277,6 +411,61 @@ function togglePreview(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
+
+@if(Auth::user()->role === 'admin' && $nias->has_possible_duplicate)
+const dupModalEl = document.getElementById('modalDupCheck');
+function openDupModal() {
+    if (dupModalEl) new bootstrap.Modal(dupModalEl).show();
+}
+
+function resolveDup(decision) {
+    const conf = {
+        not_duplicate: {
+            title: 'Bukan Duplikat?',
+            html: 'Flag CAUTION akan dihapus dan data kembali ke status PENDING untuk diproses (ACC/Reject) seperti biasa.',
+            icon: 'question',
+            color: '#198754',
+            btn: 'Ya, Bukan Duplikat',
+            form: 'form_dup_not_dup',
+        },
+        not_duplicate_acc: {
+            title: 'Bukan Duplikat & Langsung ACC?',
+            html: 'Flag CAUTION akan dihapus dan data langsung berubah menjadi <span class="badge bg-success">DISETUJUI</span>.',
+            icon: 'question',
+            color: '#198754',
+            btn: 'Ya, ACC!',
+            form: 'form_dup_not_dup_acc',
+        },
+        duplicate: {
+            title: 'Konfirmasi Duplikat?',
+            html: 'Data <strong>{{ addslashes($nias->NAMA) }}</strong> akan DIBATALKAN. Status berubah menjadi <span class="badge bg-dark">DIBATALKAN (DUPLIKAT)</span>.',
+            icon: 'warning',
+            color: '#dc3545',
+            btn: 'Ya, Batalkan!',
+            form: 'form_dup_duplicate',
+        },
+    };
+    const c = conf[decision];
+    if (!c) return;
+    Swal.fire({
+        title: c.title,
+        html: c.html,
+        icon: c.icon,
+        showCancelButton: true,
+        confirmButtonColor: c.color,
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: c.btn,
+        cancelButtonText: 'Batal',
+    }).then(result => {
+        if (result.isConfirmed) document.getElementById(c.form).submit();
+    });
+}
+
+// Auto-open warning modal saat admin membuka detail data berstatus Caution
+document.addEventListener('DOMContentLoaded', function () {
+    openDupModal();
+});
+@endif
 
 function confirmAcc() {
     Swal.fire({

@@ -17,7 +17,7 @@ class Nias extends Model
         'STATUS','TGLDAFTAR','EXPIRED','LASTMUTASI','MUTASI','TGLDAFTAR_UPDATE',
         'file_kk','file_foto','file_akte','file_ijazah', 'is_update', 'tipe_update',
         'file_sk_mutasi', 'mutasi_luar_jatim',
-        'is_sent', 'sent_at',
+        'is_sent', 'sent_at', 'has_possible_duplicate',
     ];
 
     /**
@@ -36,6 +36,7 @@ class Nias extends Model
         'EXPIRED'   => 'date',
         'is_sent' => 'boolean',
         'sent_at' => 'datetime',
+        'has_possible_duplicate' => 'boolean',
     ];
 
     /**

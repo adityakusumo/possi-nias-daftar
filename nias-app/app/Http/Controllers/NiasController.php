@@ -16,6 +16,56 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class NiasController extends Controller
 {
+    /** STATUS numerik di NIAS_STRUCT */
+    public const STATUS_DITOLAK    = 0; // ditolak / expired
+    public const STATUS_DISETUJUI  = 1; // disetujui (ACC)
+    public const STATUS_PENDING    = 2; // pending acc (belum dikirim)
+    public const STATUS_TERKIRIM   = 3; // sudah dikirim, menunggu acc
+    public const STATUS_DIBATALKAN = 4; // dibatalkan (terkonfirmasi duplikat)
+
+    /**
+     * Perpanjang diblokir bila masa berlaku masih tersisa LEBIH dari X hari.
+     * Sesuai duplicate-check.txt: "prevent unnecessary early extension".
+     * Catatan di dokumen menyarankan buffer 30–60 hari sebelum habis masa berlaku.
+     */
+    public const PERPANJANG_EARLY_DAYS = 60;
+
+    // -------------------------------------------------------------------------
+    // DUPLICATE CHECK — kandidat duplikat di tabel master NIAS
+    // -------------------------------------------------------------------------
+    /**
+     * Cari atlet di database NIAS (tabel master, read-only) yang cocok PERSIS:
+     * LOWER(NAMA) sama, gender sama, tanggal lahir sama.
+     *
+     * @param string|null $nama     Nama dari pendaftaran (sudah UPPER/trim di store)
+     * @param string|null $gender   'L' / 'P' (format pendaftaran)
+     * @param string|null $tgllahir Tanggal lahir (Y-m-d / Carbon)
+     * @return \Illuminate\Support\Collection
+     */
+    public static function possibleDuplicates(?string $nama, ?string $gender, $tgllahir)
+    {
+        if (!$nama || !$gender || !$tgllahir) {
+            return collect();
+        }
+
+        // Master NIAS memakai gender 'Pa'/'Pi'; pendaftaran memakai 'L'/'P'
+        $genderSet = strtoupper($gender) === 'L'
+            ? ['Pa', 'L']
+            : ['Pi', 'P'];
+
+        $dob = $tgllahir instanceof Carbon
+            ? $tgllahir->format('Y-m-d')
+            : (string) $tgllahir;
+
+        return NiasExisting::query()
+            ->whereRaw('LOWER(TRIM(NAMA)) = ?', [mb_strtolower(trim($nama))])
+            ->whereIn('GENDER', $genderSet)
+            ->whereDate('TGLLAHIR', $dob)
+            ->select('ID', 'NONIAS', 'NAMA', 'GENDER', 'NAMACLUB', 'TGLLAHIR', 'EXPIRED')
+            ->orderBy('NAMA')
+            ->get();
+    }
+
     // -------------------------------------------------------------------------
     // INDEX
     // -------------------------------------------------------------------------
@@ -191,7 +241,8 @@ class NiasController extends Controller
         $user = Auth::user();
 
         $rules = [
-            'NONIAS' => 'nullable|digits:14',
+            // Perpanjangan wajib memilih No. NIAS atlet existing
+            'NONIAS' => $isUpdate ? 'nullable|required_if:tipe_update,perpanjangan|digits:14' : 'nullable|digits:14',
             'NAMA' => 'required|string|max:100',
             'GENDER' => 'required|in:L,P',
             'TGLLAHIR' => 'required|date|before:today',
@@ -253,7 +304,39 @@ class NiasController extends Controller
         $fileIjazah = $request->hasFile('file_ijazah') ? $request->file('file_ijazah')->store($folder, 'local') : null;
         $fileSkMutasi = $request->hasFile('file_sk_mutasi') ? $request->file('file_sk_mutasi')->store($folder, 'local') : null;
 
-        DB::transaction(function () use ($validated, $namaclub, $clubInfo, $clubCode, $domInfo, $today, $expired, $fileKk, $fileFoto, $fileAkte, $fileIjazah, $fileSkMutasi, $isUpdate) {
+        // ── Guard PERPANJANGAN (server-side): cegah perpanjang terlalu awal ──
+        // Berlaku hanya mode perpanjangan — mode mutasi (pindah club/KK) dilewati.
+        if ($isUpdate && ($validated['tipe_update'] ?? null) === 'perpanjangan' && !empty($validated['NONIAS'])) {
+            $athlete = NiasExisting::where('NONIAS', $validated['NONIAS'])->first();
+            if ($athlete && $athlete->EXPIRED) {
+                $expiredDate = Carbon::parse($athlete->EXPIRED);
+                $remainingDays = (int) Carbon::today()->startOfDay()->diffInDays($expiredDate->copy()->startOfDay(), false);
+                if ($remainingDays > self::PERPANJANG_EARLY_DAYS) {
+                    return back()->withInput()->withErrors([
+                        'NONIAS' => sprintf(
+                            'NIAS atlet ini masih aktif sampai %s (sisa %d hari). Perpanjangan hanya bisa diajukan paling cepat %d hari sebelum masa berlaku habis.',
+                            $expiredDate->format('d/m/Y'),
+                            $remainingDays,
+                            self::PERPANJANG_EARLY_DAYS
+                        ),
+                    ]);
+                }
+            }
+        }
+
+        // ── DETECT DUPLIKAT (hanya pendaftaran BARU, is_update=false) ──
+        // Cek tabel master NIAS: LOWER(NAMA) + GENDER + TGLLAHIR cocok persis.
+        // Jika cocok → has_possible_duplicate=true (status Caution), status default tetap pending.
+        $hasPossibleDuplicate = false;
+        if (!$isUpdate) {
+            $hasPossibleDuplicate = self::possibleDuplicates(
+                $validated['NAMA'],
+                $validated['GENDER'],
+                $validated['TGLLAHIR']
+            )->isNotEmpty();
+        }
+
+        DB::transaction(function () use ($validated, $namaclub, $clubInfo, $clubCode, $domInfo, $today, $expired, $fileKk, $fileFoto, $fileAkte, $fileIjazah, $fileSkMutasi, $isUpdate, $hasPossibleDuplicate) {
             Nias::create([
                 'user_id' => Auth::id(),
                 'NONIAS' => $validated['NONIAS'] ?? null,
@@ -275,13 +358,14 @@ class NiasController extends Controller
                 'NAMAPROPDOM' => 'JAWA TIMUR',
                 'KDKOTADOM' => $domInfo[2] ?? null,
                 'NAMAKOTADOM' => $this->stripWilayahPrefix($validated['NAMAKOTADOM'] ?? null) ?: ($validated['NAMAKOTADOM'] ?? null),
-                'STATUS' => 2, // 2 = pending acc
+                'STATUS' => self::STATUS_PENDING, // 2 = pending acc
                 'TGLDAFTAR' => $today->toDateString(),
                 'TGLDAFTAR_UPDATE' => $isUpdate ? $today->toDateString() : null,
                 'EXPIRED' => $expired->toDateString(),
                 'LASTMUTASI' => $today->format('Ym'),
                 'MUTASI' => $isUpdate ? 'P' : 'A',
                 'is_update' => $isUpdate,
+                'has_possible_duplicate' => $hasPossibleDuplicate,
                 'file_kk' => $fileKk,
                 'file_foto' => $fileFoto,
                 'file_akte' => $fileAkte,
@@ -308,7 +392,56 @@ class NiasController extends Controller
     {
         $nias = Nias::findOrFail($id);
         $this->authorizeNias($nias);
-        return view('nias.show', compact('nias'));
+
+        // Kandidat duplikat (rekomputasi saat halaman dibuka, hanya jika berflag Caution)
+        $possibleDuplicates = $nias->has_possible_duplicate
+            ? self::possibleDuplicates($nias->NAMA, $nias->GENDER, $nias->TGLLAHIR)
+            : collect();
+
+        return view('nias.show', compact('nias', 'possibleDuplicates'));
+    }
+
+    // -------------------------------------------------------------------------
+    // RESOLVE DUPLICATE — keputusan admin atas data berstatus Caution
+    // -------------------------------------------------------------------------
+    public function resolveDuplicate(Request $request, $id)
+    {
+        $nias = Nias::findOrFail($id);
+        if (Auth::user()->role !== 'admin') {
+            abort(403, 'Hanya admin yang dapat menyelesaikan status duplikat.');
+        }
+
+        $decision = $request->input('decision');
+        if (!in_array($decision, ['not_duplicate', 'not_duplicate_acc', 'duplicate'], true)) {
+            return back()->with('error', 'Keputusan duplikat tidak valid.');
+        }
+
+        if ($decision === 'duplicate') {
+            // Option B: konfirmasi duplikat → batalkan (override status apapun)
+            $nias->update([
+                'STATUS' => self::STATUS_DIBATALKAN, // 4 = dibatalkan
+                'has_possible_duplicate' => false,
+            ]);
+            return redirect()->back()
+                ->with('error', "Data {$nias->NAMA} DIBATALKAN karena terkonfirmasi duplikat.");
+        }
+
+        // Option A: bukan duplikat → hapus flag, kembali ke status pending standar
+        if ($decision === 'not_duplicate_acc') {
+            $nias->update([
+                'STATUS' => self::STATUS_DISETUJUI, // 1 = langsung disetujui
+                'has_possible_duplicate' => false,
+            ]);
+            return redirect()->back()
+                ->with('success', "Flag duplikat untuk {$nias->NAMA} dihapus. Data langsung DISETUJUI.");
+        }
+
+        $nias->update([
+            'STATUS' => $nias->is_sent ? self::STATUS_TERKIRIM : self::STATUS_PENDING,
+            'has_possible_duplicate' => false,
+        ]);
+        return redirect()->back()
+            ->with('success', "Flag duplikat untuk {$nias->NAMA} dihapus. Status kembali menunggu proses (pending).");
     }
 
     // -------------------------------------------------------------------------
@@ -399,6 +532,15 @@ class NiasController extends Controller
             'file_akte' => $fileAkte,
             'file_ijazah' => $fileIjazah,
         ]);
+
+        // Jaga akurasi flag duplikat bila data registrasi BARU diubah admin/owner
+        // (mis. nama salah ketik yang memicu false positive). Mode update tidak dicek.
+        if (!$nias->is_update) {
+            $recheck = self::possibleDuplicates($validated['NAMA'], $validated['GENDER'], $validated['TGLLAHIR']);
+            if ($recheck->isNotEmpty() !== (bool) $nias->has_possible_duplicate) {
+                $nias->update(['has_possible_duplicate' => $recheck->isNotEmpty()]);
+            }
+        }
 
         return redirect()->route('nias.show', $nias->ID)
             ->with('success', 'Data NIAS berhasil diperbarui.');
@@ -760,8 +902,15 @@ class NiasController extends Controller
             'Jumlah NIAS Baru',
             'Jumlah NIAS Update',
             'Total NIAS',
+            'Nominal Transfer (Rp)',
             'File Bukti Transfer',
         ]];
+        $tarifNias = \App\Models\MstTarifNias::getAllTarif();
+        $tarifBaru = (int) ($tarifNias['baru'] ?? 60000);
+        $tarifUpdate = (int) ($tarifNias['update'] ?? 30000);
+        $totalNew = 0;
+        $totalUpdate = 0;
+        $totalAmount = 0;
 
         foreach ($eligibleUsers as $index => $user) {
             $buktiPath = $user->bukti_transfer_path;
@@ -771,8 +920,12 @@ class NiasController extends Controller
             $safeName = sprintf('%02d_%s_%s', $index + 1, $clubSlug, preg_replace('/[^A-Za-z0-9_]/', '_', ($user->nama ?? 'user')));
             $zip->addFile($storagePath, 'bukti_transfer/' . $safeName . '.' . $ext);
 
-            $newCount = \App\Models\Nias::where('user_id', $user->id)->where('is_sent', false)->where('is_update', false)->count();
-            $updateCount = \App\Models\Nias::where('user_id', $user->id)->where('is_sent', false)->where('is_update', true)->count();
+            $newCount = \App\Models\Nias::where('user_id', $user->id)->where('is_update', false)->count();
+            $updateCount = \App\Models\Nias::where('user_id', $user->id)->where('is_update', true)->count();
+            $amount = ($newCount * $tarifBaru) + ($updateCount * $tarifUpdate);
+            $totalNew += $newCount;
+            $totalUpdate += $updateCount;
+            $totalAmount += $amount;
 
             $summaryRows[] = [
                 $index + 1,
@@ -784,9 +937,15 @@ class NiasController extends Controller
                 $newCount,
                 $updateCount,
                 $newCount + $updateCount,
+                $amount,
                 $safeName . '.' . $ext,
             ];
         }
+
+        $summaryRows[] = [];
+        $summaryRows[] = ['SUMMARY', 'TOTAL FILTERED TRANSFERS', '', '', '', '', $totalNew, $totalUpdate, $totalNew + $totalUpdate, $totalAmount, ''];
+        $summaryRows[] = ['SUMMARY', 'TARIF NIAS BARU', '', '', '', '', '', '', '', $tarifBaru, ''];
+        $summaryRows[] = ['SUMMARY', 'TARIF NIAS UPDATE', '', '', '', '', '', '', '', $tarifUpdate, ''];
 
         $tmpCsv = tempnam(sys_get_temp_dir(), 'bukti_summary_');
         $out = fopen($tmpCsv, 'w');
@@ -819,8 +978,10 @@ class NiasController extends Controller
         $userEmail = $user->email;
 
         // Ambil hanya data yang belum dikirim untuk pengecekan awal
+        // (data berstatus DIBATALKAN/duplikat tidak ikut dikirim)
         $records = Nias::where('user_id', $user->id)
             ->where('is_sent', false)
+            ->where('STATUS', '!=', self::STATUS_DIBATALKAN)
             ->get();
 
         if ($records->isEmpty()) {
@@ -830,6 +991,7 @@ class NiasController extends Controller
         // Hanya data belum dikirim untuk ZIP & CSV
         $allRecords = Nias::where('user_id', $user->id)
             ->where('is_sent', false)
+            ->where('STATUS', '!=', self::STATUS_DIBATALKAN)
             ->orderBy('NAMA')
             ->get();
 
@@ -974,13 +1136,14 @@ class NiasController extends Controller
 
         @unlink($tmpZip);
 
-        // Tandai data sebagai sudah dikirim
+        // Tandai data sebagai sudah dikirim (kecuali yang DIBATALKAN/duplikat)
         Nias::where('user_id', $user->id)
             ->where('is_sent', false)
+            ->where('STATUS', '!=', self::STATUS_DIBATALKAN)
             ->update([
                 'is_sent' => true,
                 'sent_at' => now(),
-                'STATUS'  => 3, // 3 = sudah dikirim, menunggu acc
+                'STATUS'  => self::STATUS_TERKIRIM, // 3 = sudah dikirim, menunggu acc
             ]);
 
         return redirect()->route('nias.index')
@@ -1219,8 +1382,9 @@ class NiasController extends Controller
         $expiredDate = now()->day(28)->addMonth()->addYears(2);
 
         // 1. Data NONIAS & NAMA untuk tipe yg butuh semua club (update_club, update_all)
+        // EXPIRED diikutkan agar mode Perpanjangan bisa cek "masih aktif?" di frontend.
         $existingNias = NiasExisting::whereNotNull('NONIAS')
-            ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB')
+            ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB', 'EXPIRED')
             ->orderBy('NAMA')
             ->get();
 
@@ -1232,7 +1396,7 @@ class NiasController extends Controller
         // 2. Data NONIAS & NAMA HANYA club sendiri (perpanjangan, update_domisili)
         $existingNiasMyClub = NiasExisting::whereNotNull('NONIAS')
             ->where('NAMACLUB', $userClub)
-            ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB')
+            ->select('NONIAS', 'NAMA', 'GENDER', 'TGLLAHIR', 'TPTLAHIR', 'NAMACLUB', 'EXPIRED')
             ->orderBy('NAMA')
             ->get();
 

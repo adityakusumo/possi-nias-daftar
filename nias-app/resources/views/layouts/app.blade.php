@@ -124,6 +124,11 @@
             background: #dc3545;
         }
 
+        .badge-caution {
+            background: #fd7e14;
+            color: #fff;
+        }
+
         .nav-tabs .nav-link {
             color: #6c757d;
             background-color: #f8f9fa;

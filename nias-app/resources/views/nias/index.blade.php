@@ -162,7 +162,7 @@
                     </thead>
                     <tbody>
                         @forelse($records as $r)
-                            <tr class="{{ $r->is_update ? 'table-info' : '' }}" data-id="{{ $r->ID }}">
+                            <tr class="{{ $r->is_update ? 'table-info' : '' }}{{ $r->has_possible_duplicate ? ' table-warning' : '' }}" data-id="{{ $r->ID }}">
                                 <td class="text-center">
                                     <input type="checkbox" class="form-check-input chk_row mt-0" value="{{ $r->ID }}">
                                 </td>
@@ -203,7 +203,16 @@
                                     {{ $r->EXPIRED?->format('d/m/Y') }}
                                 </td>
                                 <td>
-                                    @if(!$r->is_update && !$r->EXPIRED)
+                                    @if($r->has_possible_duplicate)
+                                        <span class="badge badge-caution" title="Terindikasi duplikat dengan atlet yang sudah terdaftar di database NIAS">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>CAUTION
+                                        </span>
+                                    @endif
+                                    @if((int)$r->STATUS === 4)
+                                        <span class="badge bg-dark">
+                                            <i class="bi bi-x-octagon-fill me-1"></i>DIBATALKAN
+                                        </span>
+                                    @elseif(!$r->is_update && !$r->EXPIRED)
                                         <span class="badge bg-primary">DAFTAR BARU</span>
                                     @elseif($r->is_update && $r->EXPIRED && $r->EXPIRED->isPast())
                                         <span class="badge badge-expired">EXPIRED</span>
@@ -265,7 +274,7 @@
 
     {{-- Total Biaya + Bukti Transfer + Tombol Kirim + Export CSV --}}
     @php
-        $allPending      = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->get();
+        $allPending      = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->where('STATUS', '!=', 4)->get(); // 4 = dibatalkan (duplikat)
         $totalBiayaSemua = $allPending->sum(fn($r) => $r->is_update ? ($tarifNias['update'] ?? 30000) : ($tarifNias['baru'] ?? 60000));
         $jmlBaru         = $allPending->where('is_update', false)->count();
         $jmlUpdate       = $allPending->where('is_update', true)->count();
@@ -410,7 +419,7 @@
                         </thead>
                         <tbody>
                             @foreach($sentRecords as $r)
-                                <tr class="table-light">
+                                <tr class="table-light{{ $r->has_possible_duplicate ? ' table-warning' : '' }}">
                                     @if(Auth::user()->role === 'admin')
                                     <td class="text-center">
                                         <input type="checkbox" class="form-check-input chk_sent_row mt-0"
@@ -451,9 +460,15 @@
                                                 2 => ['label' => 'PENDING ACC', 'icon' => 'bi-hourglass-split', 'class' => 'bg-warning text-dark'],
                                                 3 => ['label' => 'TERKIRIM', 'icon' => 'bi-send-check', 'class' => 'bg-info text-dark'],
                                                 0 => ['label' => 'DITOLAK', 'icon' => 'bi-x-circle-fill', 'class' => 'bg-danger'],
+                                                4 => ['label' => 'DIBATALKAN', 'icon' => 'bi-x-octagon-fill', 'class' => 'bg-dark'],
                                                 default => ['label' => 'TERKIRIM', 'icon' => 'bi-send-check', 'class' => 'bg-info text-dark'],
                                             };
                                         @endphp
+                                        @if($r->has_possible_duplicate)
+                                            <span class="badge badge-caution mb-1" title="Terindikasi duplikat dengan atlet yang sudah terdaftar di database NIAS">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>CAUTION
+                                            </span>
+                                        @endif
                                         <span class="badge {{ $sentStatus['class'] }}">
                                             <i class="bi {{ $sentStatus['icon'] }}"></i> {{ $sentStatus['label'] }}
                                         </span>
@@ -463,7 +478,14 @@
                                             title="Detail">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        @if(Auth::user()->role === 'admin' && in_array((int)$r->STATUS, [2, 3]))
+                                        {{-- Berstatus Caution: wajib periksa & selesaikan duplikat dulu (ACC/Reject disembunyikan) --}}
+                                        @if(Auth::user()->role === 'admin' && $r->has_possible_duplicate)
+                                        <a href="{{ route('nias.show', $r->ID) }}"
+                                           class="btn btn-sm btn-outline-warning py-0"
+                                           title="Periksa duplikat — selesaikan sebelum ACC">
+                                            <i class="bi bi-exclamation-triangle"></i> Periksa
+                                        </a>
+                                        @elseif(Auth::user()->role === 'admin' && in_array((int)$r->STATUS, [2, 3]))
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-success py-0"
                                                 title="Terima / ACC — ubah status menjadi DISETUJUI"
@@ -519,8 +541,8 @@
                     </div>
                     <div class="modal-body">
                         @php
-                            $jmlBaru = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->where('is_update', false)->count();
-                            $jmlUpdate = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->where('is_update', true)->count();
+                            $jmlBaru = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->where('STATUS', '!=', 4)->where('is_update', false)->count();
+                            $jmlUpdate = \App\Models\Nias::where('user_id', Auth::id())->where('is_sent', false)->where('STATUS', '!=', 4)->where('is_update', true)->count();
                         @endphp
                         <div class="alert alert-light border small mb-3">
                             <table class="w-100">
@@ -826,7 +848,17 @@
     <div class="card page-card">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0"><i class="bi bi-wallet2 me-2"></i>Catatan Keuangan</h5>
-            <span class="badge bg-success">{{ $financialRecords->count() }} bukti transfer</span>
+            @php
+                $financeTarifBaru = (int) ($tarifNias['baru'] ?? 60000);
+                $financeTarifUpdate = (int) ($tarifNias['update'] ?? 30000);
+                $financeTotalBaru = $financialRecords->sum(fn($u) => \App\Models\Nias::where('user_id', $u->id)->where('is_update', false)->count());
+                $financeTotalUpdate = $financialRecords->sum(fn($u) => \App\Models\Nias::where('user_id', $u->id)->where('is_update', true)->count());
+                $financeTotalAmount = ($financeTotalBaru * $financeTarifBaru) + ($financeTotalUpdate * $financeTarifUpdate);
+            @endphp
+            <div class="text-end">
+                <span class="badge bg-success">{{ $financialRecords->count() }} bukti transfer</span>
+                <span class="badge bg-primary">Total: Rp {{ number_format($financeTotalAmount, 0, ',', '.') }}</span>
+            </div>
         </div>
         <div class="card-body p-3">
             <form method="GET" action="{{ route('nias.index') }}" class="row g-2 align-items-end mb-3">
@@ -882,6 +914,9 @@
                             <th>Club</th>
                             <th>Role</th>
                             <th>Tanggal Upload</th>
+                            <th>Jumlah NIAS Baru</th>
+                            <th>Jumlah NIAS Update</th>
+                            <th>Nominal (Rp)</th>
                             <th>Bukti Transfer</th>
                         </tr>
                     </thead>
@@ -900,6 +935,14 @@
                                 <td class="small">
                                     {{ $u->updated_at ? $u->updated_at->format('d/m/Y H:i') : '-' }}
                                 </td>
+                                @php
+                                    $userNewCount = \App\Models\Nias::where('user_id', $u->id)->where('is_update', false)->count();
+                                    $userUpdateCount = \App\Models\Nias::where('user_id', $u->id)->where('is_update', true)->count();
+                                    $userAmount = ($userNewCount * $financeTarifBaru) + ($userUpdateCount * $financeTarifUpdate);
+                                @endphp
+                                <td>{{ $userNewCount }}</td>
+                                <td>{{ $userUpdateCount }}</td>
+                                <td class="text-end fw-semibold text-success">Rp {{ number_format($userAmount, 0, ',', '.') }}</td>
                                 <td>
                                     <a href="{{ route('nias.serve-bukti', $u->id) }}" target="_blank"
                                        class="btn btn-sm btn-outline-primary">
@@ -909,7 +952,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
+                                <td colspan="10" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
                                     Belum ada bukti transfer yang diupload oleh user.
                                 </td>

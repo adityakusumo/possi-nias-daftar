@@ -59,6 +59,7 @@
                                 <option value="{{ $en->NONIAS }}" class="opt-myclub" data-nama="{{ $en->NAMA }}"
                                     data-gender="{{ $en->GENDER }}" data-tptlahir="{{ $en->TPTLAHIR }}"
                                     data-tgllahir="{{ $en->TGLLAHIR ? \Carbon\Carbon::parse($en->TGLLAHIR)->format('Y-m-d') : '' }}"
+                                    data-expired="{{ $en->EXPIRED ? \Carbon\Carbon::parse($en->EXPIRED)->format('Y-m-d') : '' }}"
                                     {{ old('NONIAS') == $en->NONIAS ? 'selected' : '' }}>
                                     {{ $en->NONIAS }} — {{ $en->NAMA }}
                                 </option>
@@ -69,6 +70,7 @@
                                     data-nama="{{ $en->NAMA }}" data-gender="{{ $en->GENDER }}"
                                     data-tptlahir="{{ $en->TPTLAHIR }}"
                                     data-tgllahir="{{ $en->TGLLAHIR ? \Carbon\Carbon::parse($en->TGLLAHIR)->format('Y-m-d') : '' }}"
+                                    data-expired="{{ $en->EXPIRED ? \Carbon\Carbon::parse($en->EXPIRED)->format('Y-m-d') : '' }}"
                                     {{ old('NONIAS') == $en->NONIAS ? 'selected' : '' }}>
                                     {{ $en->NONIAS }} — {{ $en->NAMA }}
                                 </option>
@@ -76,6 +78,8 @@
                         </select>
                         <div class="form-text">Pilih No NIAS dari data existing. Nama, gender, dan TTL akan terisi otomatis.
                         </div>
+                        {{-- Pesan blokir perpanjangan dini (mode Perpanjangan) --}}
+                        <div id="perpanjang_hint" class="form-text text-danger fw-semibold" style="display:none;"></div>
                     </div>
 
                     {{-- Nama & TTL --}}
@@ -332,10 +336,103 @@
                 });
             }
 
+            // ══ Guard Perpanjangan Dini (hanya mode perpanjangan; mode mutasi dilewati) ══
+            // Ambang blokir diambil dari konstanta controller agar sama dengan validasi server.
+            const PERPANJANG_EARLY_DAYS = {{ \App\Http\Controllers\NiasController::PERPANJANG_EARLY_DAYS }};
+            const BULAN_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            let perpanjangBlocked = false;
+
+            function fmtTanggal(ymd) {
+                if (!ymd) return '';
+                const [y, m, d] = ymd.split('-').map(Number);
+                return d + ' ' + (BULAN_NAMES[m - 1] || m) + ' ' + y;
+            }
+
+            // Sisa hari masa berlaku (0 = habis hari ini, negatif = sudah habis)
+            function daysLeft(expiredYmd) {
+                if (!expiredYmd) return null;
+                const [y, m, d] = expiredYmd.split('-').map(Number);
+                const expUtc = Date.UTC(y, m - 1, d);
+                const now = new Date();
+                const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+                return Math.round((expUtc - todayUtc) / 86400000);
+            }
+
+            function resetPerpanjangGuard() {
+                perpanjangBlocked = false;
+                $('#perpanjang_hint').hide().text('');
+                $('#btn_submit').prop('disabled', false);
+            }
+
+            function runPerpanjangGuard($selected) {
+                // Mode selain perpanjangan (pindah club/domisili = mutasi) → tanpa cek
+                if ($('#tipe_update').val() !== 'perpanjangan') {
+                    resetPerpanjangGuard();
+                    return;
+                }
+                const expired = $selected.data('expired');
+                if (!expired) {
+                    resetPerpanjangGuard();
+                    return;
+                }
+
+                const remaining = daysLeft(expired);
+                if (remaining === null) {
+                    resetPerpanjangGuard();
+                    return;
+                }
+
+                const nama = $selected.data('nama') || 'Atlet ini';
+
+                if (remaining > PERPANJANG_EARLY_DAYS) {
+                    // Masih aktif lama → blokir perpanjangan dini
+                    perpanjangBlocked = true;
+                    $('#perpanjang_hint')
+                        .text('NIAS atlet masih aktif sampai ' + fmtTanggal(expired) +
+                              ' (sisa ±' + remaining + ' hari). Perpanjangan diblokir: ajukan paling cepat ' +
+                              PERPANJANG_EARLY_DAYS + ' hari sebelum masa berlaku habis, atau pilih tipe update lain (mutasi).')
+                        .show();
+                    $('#btn_submit').prop('disabled', true);
+                    Swal.fire({
+                        title: 'NIAS Masih Aktif — Perpanjangan Diblokir',
+                        html: 'NIAS <strong>' + nama + '</strong> masih aktif sampai <strong>' +
+                            fmtTanggal(expired) + '</strong> (sisa ±' + remaining + ' hari).<br><br>' +
+                            'Untuk mencegah perpanjangan yang tidak perlu, pengajuan perpanjangan baru bisa dilakukan ' +
+                            'paling cepat <strong>' + PERPANJANG_EARLY_DAYS + ' hari</strong> sebelum masa berlaku habis.' +
+                            '<br>Pilih atlet lain, atau gunakan tipe <em>Pindah Club / Pindah Domisili</em> bila tujuannya mutasi.',
+                        icon: 'warning',
+                        confirmButtonColor: '#fd7e14',
+                        confirmButtonText: 'Mengerti',
+                    });
+                    return;
+                }
+
+                if (remaining >= 0) {
+                    // Masih aktif tapi sudah di ambang habis (≤ buffer) → peringatan, boleh lanjut
+                    resetPerpanjangGuard();
+                    Swal.fire({
+                        title: 'NIAS Hampir Habis',
+                        html: 'NIAS <strong>' + nama + '</strong> masih aktif sampai <strong>' +
+                            fmtTanggal(expired) + '</strong> (sisa ±' + remaining + ' hari).<br>' +
+                            'Anda tetap dapat mengajukan perpanjangan sekarang.',
+                        icon: 'info',
+                        confirmButtonColor: '#0d6efd',
+                        confirmButtonText: 'Lanjutkan',
+                    });
+                    return;
+                }
+
+                // Sudah habis masa berlaku → normal, tanpa peringatan
+                resetPerpanjangGuard();
+            }
+
             function bindNoniasChange() {
                 $('#NONIAS').off('change.autofill').on('change.autofill', function () {
                     const selected = $(this).find('option:selected');
-                    if (!selected.val()) return;
+                    if (!selected.val()) {
+                        resetPerpanjangGuard();
+                        return;
+                    }
 
                     const nama = selected.data('nama') || '';
                     const gender = selected.data('gender') || '';
@@ -353,6 +450,9 @@
                     $('select[name="GENDER"]').val(genderMapped).trigger('change');
                     $('input[name="TEMPATLAHIR"]').val(tptlahir.toUpperCase());
                     $('input[name="TGLLAHIR"]').val(tgllahir);
+
+                    // Cek masa berlaku — mode perpanjangan (mode mutasi otomatis dilewati)
+                    runPerpanjangGuard(selected);
                 });
             }
 
@@ -369,6 +469,9 @@
             });
 
             function applyTipe(tipe) {
+                // Ganti tipe → reset status blokir perpanjangan dini
+                resetPerpanjangGuard();
+
                 const domisiliRequired = (tipe === 'update_domisili' || tipe === 'update_all');
                 const clubRequired = (tipe === 'update_club' || tipe === 'update_all');
                 const filterByClub = (tipe === 'perpanjangan' || tipe === 'update_domisili');
@@ -431,6 +534,19 @@
                     return;
                 }
                 $('#tipe_update').removeClass('is-invalid');
+
+                // Pengaman kedua: jangan proses bila perpanjangan dini masih terblokir
+                if (perpanjangBlocked) {
+                    Swal.fire({
+                        title: 'Perpanjangan Diblokir',
+                        html: 'NIAS atlet yang dipilih masih aktif. Pilih atlet lain, atau gunakan tipe ' +
+                            '<em>Pindah Club / Pindah Domisili</em> bila tujuannya mutasi.',
+                        icon: 'warning',
+                        confirmButtonColor: '#fd7e14',
+                        confirmButtonText: 'Mengerti',
+                    });
+                    return;
+                }
 
                 Swal.fire({
                     title: 'Konfirmasi Update',
