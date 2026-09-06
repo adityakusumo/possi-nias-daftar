@@ -54,11 +54,11 @@
                             </tr>
                             <tr>
                                 <td class="text-muted small">Dibuat</td>
-                                <td class="small">{{ $user->created_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                                <td class="small">{{ $user->created_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—' }}</td>
                             </tr>
                             <tr>
                                 <td class="text-muted small">Diperbarui</td>
-                                <td class="small">{{ $user->updated_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                                <td class="small">{{ $user->updated_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—' }}</td>
                             </tr>
                         </table>
                     </div>

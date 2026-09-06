@@ -61,8 +61,11 @@ class SettingController extends Controller
 
         // Data untuk tab Akun — dengan sort
         $akunSortables = ['nama', 'namaclub', 'email', 'role', 'created_at', 'updated_at'];
-        $akunSortCol   = in_array(request('sort_akun'), $akunSortables) ? request('sort_akun') : 'nama';
-        $akunSortDir   = request('dir_akun') === 'desc' ? 'desc' : 'asc';
+        $requestedAkunSort = request('sort_akun');
+        $akunSortCol       = in_array($requestedAkunSort, $akunSortables) ? $requestedAkunSort : 'updated_at';
+        $akunSortDir       = in_array($requestedAkunSort, $akunSortables)
+            ? (request('dir_akun') === 'desc' ? 'desc' : 'asc')
+            : 'desc';
         $akunSearch    = request('cari');
         $akunUsers = User::when($akunSearch, fn($q) => $q->where('nama',     'like', "%{$akunSearch}%")
                                                           ->orWhere('email',    'like', "%{$akunSearch}%")

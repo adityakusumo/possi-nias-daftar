@@ -545,8 +545,8 @@
 
                     @php
                         // Helper sort URL untuk tab akun
-                        $akunSortCol = request('sort_akun', 'nama');
-                        $akunSortDir = request('dir_akun', 'asc');
+                        $akunSortCol = request('sort_akun', 'updated_at');
+                        $akunSortDir = request('sort_akun') ? request('dir_akun', 'asc') : 'desc';
                         $akunSortables = ['nama', 'namaclub', 'email', 'role', 'created_at', 'updated_at'];
                         $thAkun = function(string $col, string $label) use ($akunSortCol, $akunSortDir): string {
                             $isActive = $col === $akunSortCol;
@@ -601,10 +601,10 @@
                                         </span>
                                     </td>
                                     <td class="small text-muted">
-                                        {{ $u->created_at?->format('d/m/Y H:i') ?? '—' }}
+                                        {{ $u->created_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—' }}
                                     </td>
                                     <td class="small text-muted">
-                                        {{ $u->updated_at?->format('d/m/Y H:i') ?? '—' }}
+                                        {{ $u->updated_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '—' }}
                                     </td>
                                     <td class="text-center" style="white-space:nowrap">
                                         <a href="{{ route('settings.akun.show', $u->id) }}"
