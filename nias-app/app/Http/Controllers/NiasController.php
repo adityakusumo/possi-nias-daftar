@@ -715,6 +715,39 @@ class NiasController extends Controller
         return trim(preg_replace('/^(kota|kab\.?|kabupaten)\s+/i', '', $nama));
     }
 
+    /**
+     * Perpanjangan and Pindah Club keep the athlete's existing domisili from
+     * the master NIAS record instead of relying on fields not entered in the form.
+     */
+    private function csvDomisili(Nias $nias): array
+    {
+        $jenis = $nias->JENISDOM;
+        $nama = $nias->NAMAKOTADOM;
+
+        // Pindah Club does not collect a new domisili, so keep the athlete's
+        // existing domicile just like perpanjangan.
+        if (
+            $nias->is_update
+            && in_array($nias->tipe_update, ['perpanjangan', 'update_club'], true)
+            && $nias->NONIAS
+        ) {
+            $existing = NiasExisting::query()
+                ->where('NONIAS', $nias->NONIAS)
+                ->select('JENISDOM', 'NAMAKOTADOM')
+                ->first();
+
+            if ($existing) {
+                $jenis = $existing->JENISDOM;
+                $nama = $existing->NAMAKOTADOM;
+            }
+        }
+
+        return [
+            'jenis' => $jenis ?? '',
+            'nama' => $this->stripWilayahPrefix($nama),
+        ];
+    }
+
     private function authorizeNias(Nias $nias): void
     {
         // Admin bisa akses semua data tanpa filter user_id
@@ -790,6 +823,8 @@ class NiasController extends Controller
         ], ';');
 
         foreach ($allRecords as $i => $r) {
+            $domisili = $this->csvDomisili($r);
+
             fputcsv($out, [
                 $i + 1,
                 $r->NAMACLUB,
@@ -797,8 +832,8 @@ class NiasController extends Controller
                 'Finswimming',
                 $r->EMAIL ?? '',
                 ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur',
-                $r->JENISDOM ?? '',
-                $this->stripWilayahPrefix($r->NAMAKOTADOM),
+                $domisili['jenis'],
+                $domisili['nama'],
                 $r->GENDER === 'L' ? 'Pa' : 'Pi',
                 $r->TEMPATLAHIR,
                 $r->TGLLAHIR?->format('m/d/Y') ?? '',
@@ -1049,6 +1084,8 @@ class NiasController extends Controller
         ], ';');
 
         foreach ($allRecords as $i => $r) {
+            $domisili = $this->csvDomisili($r);
+
             fputcsv($out, [
                 $i + 1,
                 $r->NAMACLUB,
@@ -1056,8 +1093,8 @@ class NiasController extends Controller
                 'Finswimming',
                 $r->EMAIL ?? '',
                 ($r->mutasi_luar_jatim === 'ya') ? '' : 'Jawa Timur',
-                $r->JENISDOM ?? '',
-                $this->stripWilayahPrefix($r->NAMAKOTADOM),
+                $domisili['jenis'],
+                $domisili['nama'],
                 $r->GENDER === 'L' ? 'Pa' : 'Pi',
                 $r->TEMPATLAHIR,
                 $r->TGLLAHIR?->format('m/d/Y') ?? '',
