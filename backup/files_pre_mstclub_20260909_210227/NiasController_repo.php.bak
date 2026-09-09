@@ -1210,15 +1210,7 @@ class NiasController extends Controller
             if ($filterClub) {
                 $query->where('NAMACLUB', $filterClub);
             }
-            // Dropdown = semua club master (MSTCLUB via Nias::$clubLookup) +
-            // club yang muncul di data atlet existing, supaya club tanpa atlet
-            // sekalipun tetap bisa dipilih sebagai parameter filter.
-            $allClubs = collect(array_keys(Nias::$clubLookup))
-                ->concat(NiasExisting::distinct()->orderBy('NAMACLUB')->pluck('NAMACLUB'))
-                ->unique()
-                ->filter()
-                ->sort()
-                ->values();
+            $allClubs = NiasExisting::distinct()->orderBy('NAMACLUB')->pluck('NAMACLUB');
         } else {
             $query->where('NAMACLUB', $namaclub);
             $allClubs = collect();

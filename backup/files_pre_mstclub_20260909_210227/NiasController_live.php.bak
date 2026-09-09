@@ -716,16 +716,14 @@ class NiasController extends Controller
     }
 
     /**
-     * Perpanjangan and Pindah Club keep the athlete's existing domisili from
-     * the master NIAS record instead of relying on fields not entered in the form.
+     * Pindah Club does not collect a new domisili, so use the athlete's
+     * existing domicile from the master NIAS record in exported CSV files.
      */
     private function csvDomisili(Nias $nias): array
     {
         $jenis = $nias->JENISDOM;
         $nama = $nias->NAMAKOTADOM;
 
-        // Pindah Club does not collect a new domisili, so keep the athlete's
-        // existing domicile just like perpanjangan.
         if (
             $nias->is_update
             && in_array($nias->tipe_update, ['perpanjangan', 'update_club'], true)
@@ -1210,15 +1208,7 @@ class NiasController extends Controller
             if ($filterClub) {
                 $query->where('NAMACLUB', $filterClub);
             }
-            // Dropdown = semua club master (MSTCLUB via Nias::$clubLookup) +
-            // club yang muncul di data atlet existing, supaya club tanpa atlet
-            // sekalipun tetap bisa dipilih sebagai parameter filter.
-            $allClubs = collect(array_keys(Nias::$clubLookup))
-                ->concat(NiasExisting::distinct()->orderBy('NAMACLUB')->pluck('NAMACLUB'))
-                ->unique()
-                ->filter()
-                ->sort()
-                ->values();
+            $allClubs = NiasExisting::distinct()->orderBy('NAMACLUB')->pluck('NAMACLUB');
         } else {
             $query->where('NAMACLUB', $namaclub);
             $allClubs = collect();

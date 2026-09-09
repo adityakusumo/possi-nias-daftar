@@ -33,8 +33,6 @@ auth.json
 env_setting.txt.gitignore
 env_setting_deepseek_ver.txt.gitignore
 
-# database backup files (PII) - kept out of git
-*.sql
 SSH_POSSI_OFFICE.zip
 SSH_POSSI_OFFICE/README.txt
 SSH_POSSI_OFFICE/ssh_possi_jatim.pem
