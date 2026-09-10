@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class Nias extends Model
 {
@@ -38,6 +40,36 @@ class Nias extends Model
         'sent_at' => 'datetime',
         'has_possible_duplicate' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('activeClub', function (Builder $builder) {
+            $builder->whereNotIn(
+                $builder->getModel()->getTable() . '.NAMACLUB',
+                DB::table('InactiveClub')->select('NAMACLUB')
+            );
+        });
+    }
+
+    public static function activeClubLookup(): array
+    {
+        $inactive = DB::table('InactiveClub')
+            ->pluck('NAMACLUB')
+            ->map(fn ($name) => strtoupper(trim($name)))
+            ->all();
+        $inactive = array_fill_keys($inactive, true);
+
+        return array_filter(
+            self::$clubLookup,
+            fn ($club, $name) => !isset($inactive[strtoupper(trim($name))]),
+            ARRAY_FILTER_USE_BOTH
+        );
+    }
+
+    public static function activeClubNames(): array
+    {
+        return array_keys(self::activeClubLookup());
+    }
 
     /**
      * Club lookup — from LOOKUP_CLUB_KOTAKAB in NiasUpdate_MDB.py

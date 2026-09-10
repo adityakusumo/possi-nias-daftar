@@ -133,6 +133,7 @@ class NiasController extends Controller
 
         $financialQuery = \App\Models\User::whereNotNull('bukti_transfer_path')
             ->where('bukti_transfer_path', '!=', '')
+            ->whereNotIn('namaclub', \App\Models\InactiveClub::query()->select('NAMACLUB'))
             ->where(function ($query) {
                 $query->where('role', 'regular')->orWhere('role', 'admin');
             });
@@ -161,6 +162,7 @@ class NiasController extends Controller
             ->whereIn('role', ['regular', 'admin'])
             ->whereNotNull('namaclub')
             ->where('namaclub', '!=', '')
+            ->whereNotIn('namaclub', \App\Models\InactiveClub::query()->select('NAMACLUB'))
             ->distinct()
             ->orderBy('namaclub', 'asc')
             ->pluck('namaclub');
@@ -171,7 +173,7 @@ class NiasController extends Controller
         $userClub = $user->namaclub;
         $allClubs = [];
         if ($user->role === 'admin') {
-            $allClubs = array_keys(Nias::$clubLookup);
+            $allClubs = Nias::activeClubNames();
             sort($allClubs);
         }
 
@@ -225,7 +227,7 @@ class NiasController extends Controller
 
         // Jika admin, ambil semua kunci dari lookup club di Model Nias
         if ($user->role === 'admin') {
-            $allClubs = array_keys(Nias::$clubLookup);
+            $allClubs = Nias::activeClubNames();
             sort($allClubs);
         }
 
@@ -262,7 +264,7 @@ class NiasController extends Controller
 
         // ✅ Tambahan validasi NAMACLUB khusus Admin (karena Admin menggunakan Select dropdown)
         if ($user->role === 'admin') {
-            $rules['NAMACLUB'] = 'required|string';
+            $rules['NAMACLUB'] = ['required', 'string', \Illuminate\Validation\Rule::in(Nias::activeClubNames())];
         }
 
         $validated = $request->validate($rules, [
@@ -290,7 +292,7 @@ class NiasController extends Controller
             $namaclub = $user->namaclub;
         }
 
-        $clubInfo = Nias::$clubLookup[$namaclub] ?? null;
+        $clubInfo = Nias::activeClubLookup()[$namaclub] ?? null;
         $clubCode = Nias::$clubCodeLookup[$namaclub] ?? null;
         $domInfo = !empty($validated['NAMAKOTADOM']) ? (Nias::$domisiliLookup[$validated['NAMAKOTADOM']] ?? null) : null;
 
@@ -459,7 +461,7 @@ class NiasController extends Controller
         // $allClubs diperlukan di _form.blade.php untuk dropdown admin
         $allClubs = [];
         if (Auth::user()->role === 'admin') {
-            $allClubs = array_keys(Nias::$clubLookup);
+            $allClubs = Nias::activeClubNames();
             sort($allClubs);
         }
 
@@ -489,7 +491,7 @@ class NiasController extends Controller
         ]);
 
         $namaclub = Auth::user()->namaclub;
-        $clubInfo = Nias::$clubLookup[$namaclub] ?? null;
+        $clubInfo = Nias::activeClubLookup()[$namaclub] ?? null;
         $clubCode = Nias::$clubCodeLookup[$namaclub] ?? null;
         $domInfo = !empty($validated['NAMAKOTADOM']) ? (Nias::$domisiliLookup[$validated['NAMAKOTADOM']] ?? null) : null;
 
@@ -1213,7 +1215,7 @@ class NiasController extends Controller
             // Dropdown = semua club master (MSTCLUB via Nias::$clubLookup) +
             // club yang muncul di data atlet existing, supaya club tanpa atlet
             // sekalipun tetap bisa dipilih sebagai parameter filter.
-            $allClubs = collect(array_keys(Nias::$clubLookup))
+            $allClubs = collect(Nias::activeClubNames())
                 ->concat(NiasExisting::distinct()->orderBy('NAMACLUB')->pluck('NAMACLUB'))
                 ->unique()
                 ->filter()
@@ -1453,7 +1455,7 @@ class NiasController extends Controller
 
         $allClubs = [];
         if ($userRole === 'admin') {
-            $allClubs = array_keys(Nias::$clubLookup);
+            $allClubs = Nias::activeClubNames();
             sort($allClubs);
         }
 

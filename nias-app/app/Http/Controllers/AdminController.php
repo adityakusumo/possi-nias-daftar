@@ -28,7 +28,9 @@ class AdminController extends Controller
         }
 
         // Query builder
-        $query = DB::table('NIAS')->whereNotNull('NONIAS');
+        $query = DB::table('NIAS')
+            ->whereNotNull('NONIAS')
+            ->whereNotIn('NAMACLUB', DB::table('InactiveClub')->select('NAMACLUB'));
 
         // Search: nama, NONIAS, atau nama club
         if ($search = $request->get('search')) {

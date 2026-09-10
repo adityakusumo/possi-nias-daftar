@@ -83,7 +83,7 @@ class AuthController extends Controller
             return redirect()->route('welcome');
         }
 
-        $clubs = array_keys(Nias::$clubLookup);
+        $clubs = Nias::activeClubNames();
         sort($clubs);
 
         return view('auth.register', compact('clubs'));
@@ -97,7 +97,7 @@ class AuthController extends Controller
         $request->validate([
             'nama'                  => 'required|string|max:100',
             'gender'                => 'required|in:L,P',
-            'namaclub'              => ['required', 'string', 'max:100', Rule::in(array_keys(Nias::$clubLookup))],
+            'namaclub'              => ['required', 'string', 'max:100', Rule::in(Nias::activeClubNames())],
             'email'                 => 'required|email|max:100|unique:users,email',
             'password'              => 'required|min:8|confirmed',
             'password_confirmation' => 'required',

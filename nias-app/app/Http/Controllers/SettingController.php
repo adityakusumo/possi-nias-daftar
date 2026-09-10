@@ -25,7 +25,7 @@ class SettingController extends Controller
         $maxAccountsMap  = json_decode($maxAccountsJson, true) ?? [];
 
         // Daftar semua club dari lookup + jumlah akun aktif per club
-        $allClubs = array_keys(Nias::$clubLookup);
+        $allClubs = Nias::activeClubNames();
         sort($allClubs);
 
         $clubStats = [];
@@ -53,7 +53,8 @@ class SettingController extends Controller
 
         // Data untuk tab Lomba (NIAS users — kept for legacy reset)
         $search = request('cari');
-        $users  = User::when($search, fn($q) => $q->where('nama', 'like', "%{$search}%")
+        $users  = User::whereNotIn('namaclub', \App\Models\InactiveClub::query()->select('NAMACLUB'))
+                      ->when($search, fn($q) => $q->where('nama', 'like', "%{$search}%")
                                                    ->orWhere('email', 'like', "%{$search}%"))
                       ->orderBy('nama')
                       ->paginate(20)
@@ -67,7 +68,8 @@ class SettingController extends Controller
             ? (request('dir_akun') === 'desc' ? 'desc' : 'asc')
             : 'desc';
         $akunSearch    = request('cari');
-        $akunUsers = User::when($akunSearch, fn($q) => $q->where('nama',     'like', "%{$akunSearch}%")
+        $akunUsers = User::whereNotIn('namaclub', \App\Models\InactiveClub::query()->select('NAMACLUB'))
+                         ->when($akunSearch, fn($q) => $q->where('nama',     'like', "%{$akunSearch}%")
                                                           ->orWhere('email',    'like', "%{$akunSearch}%")
                                                           ->orWhere('namaclub', 'like', "%{$akunSearch}%"))
                          ->orderBy($akunSortCol, $akunSortDir)

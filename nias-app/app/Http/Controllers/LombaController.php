@@ -164,6 +164,7 @@ class LombaController extends Controller
         $clubLookup = DB::table('NIAS')
             ->whereNotNull('NAMACLUB')
             ->where('NAMACLUB', '!=', '')
+            ->whereNotIn('NAMACLUB', DB::table('InactiveClub')->select('NAMACLUB'))
             ->select('NAMACLUB', 'JENIS', 'NAMAKOTA')
             ->distinct()
             ->get()
