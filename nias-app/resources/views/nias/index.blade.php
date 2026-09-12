@@ -281,15 +281,31 @@
     @endphp
     <div class="d-flex flex-column align-items-end gap-3 mt-2 mb-4">
 
-        {{-- Total Biaya --}}
-        <div class="card border-success" style="min-width:300px">
-            <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
-                <span class="text-muted small">Total Biaya Pendaftaran</span>
-                <span class="fw-bold text-success fs-5">Rp {{ number_format($totalBiayaSemua, 0, ',', '.') }}</span>
+        {{-- Total Biaya + Info Biaya Pendaftaran (berdampingan) --}}
+        <div class="d-flex flex-wrap gap-3 justify-content-end">
+
+            {{-- Total Biaya --}}
+            <div class="card border-success" style="min-width:300px">
+                <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">Total Biaya Pendaftaran</span>
+                    <span class="fw-bold text-success fs-5">Rp {{ number_format($totalBiayaSemua, 0, ',', '.') }}</span>
+                </div>
+                <div class="card-footer py-1 px-3 bg-light small text-muted">
+                    {{ $jmlBaru }} atlet baru + {{ $jmlUpdate }} atlet update
+                </div>
             </div>
-            <div class="card-footer py-1 px-3 bg-light small text-muted">
-                {{ $jmlBaru }} atlet baru + {{ $jmlUpdate }} atlet update
+
+            {{-- Info Biaya Pendaftaran (tarif aktif dari Setting Admin) --}}
+            <div class="card border-info" style="min-width:300px">
+                <div class="card-header py-2 px-3 small fw-bold">
+                    <i class="bi bi-info-circle me-1"></i>Info Biaya Pendaftaran
+                </div>
+                <div class="card-body py-2 px-3">
+                    <div class="small">Baru: Rp.{{ number_format($tarifNias['baru'] ?? 60000, 0, ',', '.') }}</div>
+                    <div class="small">Update: Rp.{{ number_format($tarifNias['update'] ?? 30000, 0, ',', '.') }}</div>
+                </div>
             </div>
+
         </div>
 
         {{-- Upload Bukti Transfer --}}
