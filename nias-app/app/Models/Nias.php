@@ -11,6 +11,10 @@ class Nias extends Model
     protected $table      = 'NIAS_STRUCT';
     protected $primaryKey = 'ID';
 
+    // Status yang sama dengan konstanta di NiasController.
+    // Baris berstatus ini TIDAK ikut ditagih di halaman Catatan Keuangan.
+    public const STATUS_DIBATALKAN = 4; // dibatalkan (terkonfirmasi duplikat)
+
     protected $fillable = [
         'user_id',
         'NONIAS','NAMA','GENDER','TGLLAHIR','TEMPATLAHIR','NIK','EMAIL',
@@ -84,9 +88,30 @@ class Nias extends Model
     {
         $adj = AppSetting::getFinanceAdjustment($userId);
 
+        // Hanya baris yang boleh ditagih: baris DIBATALKAN / duplikat
+        // (STATUS 4) dikeluarkan supaya tidak ikut ditagih.
+        $billable = fn () => static::where('user_id', $userId)
+            ->where('STATUS', '!=', self::STATUS_DIBATALKAN);
+
+        $rawBaru   = $billable()->where('is_update', false)->count();
+        $rawUpdate = $billable()->where('is_update', true)->count();
+
+        // Info tambahan untuk halaman Catatan Keuangan (bisa dicek manual).
+        $excluded = static::where('user_id', $userId)
+            ->where('STATUS', self::STATUS_DIBATALKAN)->count();
+        $unsent = $billable()
+            ->where(fn ($q) => $q->where('is_sent', false)->orWhereNull('is_sent'))
+            ->count();
+
         return [
-            'baru'   => static::where('user_id', $userId)->where('is_update', false)->count() + $adj['baru'],
-            'update' => static::where('user_id', $userId)->where('is_update', true)->count() + $adj['update'],
+            'baru'       => $rawBaru   + $adj['baru'],
+            'update'     => $rawUpdate + $adj['update'],
+            'raw_baru'   => $rawBaru,
+            'raw_update' => $rawUpdate,
+            'adj_baru'   => $adj['baru'],
+            'adj_update' => $adj['update'],
+            'excluded'   => $excluded,
+            'unsent'     => $unsent,
         ];
     }
 

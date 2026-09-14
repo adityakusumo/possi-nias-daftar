@@ -1004,6 +1004,32 @@ class NiasController extends Controller
     }
 
     // -------------------------------------------------------------------------
+    // FINANCE — Simpan penyesuaian manual jumlah NIAS (halaman Catatan Keuangan)
+    // -------------------------------------------------------------------------
+    public function saveFinanceAdjustment(Request $request)
+    {
+        if (Auth::user()->role !== 'admin') {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'baru'    => 'required|integer|min:0|max:100000',
+            'update'  => 'required|integer|min:0|max:100000',
+        ]);
+
+        \App\Models\AppSetting::setFinanceAdjustment(
+            (int) $data['user_id'],
+            (int) $data['baru'],
+            (int) $data['update']
+        );
+
+        return redirect()
+            ->route('nias.index', $request->only(['finance_club', 'finance_role', 'finance_sort', 'finance_dir']) + ['tab' => 'keuangan'])
+            ->with('success', 'Penyesuaian berhasil disimpan.');
+    }
+
+    // -------------------------------------------------------------------------
     // SEND EMAIL — Kirim ZIP ke it.possijatim@gmail.com
     // -------------------------------------------------------------------------
     public function sendEmail(Request $request)

@@ -933,6 +933,7 @@
                             <th>Jumlah NIAS Baru</th>
                             <th>Jumlah NIAS Update</th>
                             <th>Nominal (Rp)</th>
+                            <th>Penyesuaian</th>
                             <th>Bukti Transfer</th>
                         </tr>
                     </thead>
@@ -952,15 +953,54 @@
                                     {{ $u->updated_at ? $u->updated_at->format('d/m/Y H:i') : '-' }}
                                 </td>
                                 @php
-                                    // Hitungan NIAS_STRUCT + penyesuaian manual (AppSetting)
+                                    // Hitungan NIAS_STRUCT + penyesuaian manual (AppSetting).
+                                    // Baris dibatalkan/duplikat (STATUS 4) tidak ikut ditagih.
                                     $userCounts = \App\Models\Nias::financeCounts($u->id);
                                     $userNewCount = $userCounts['baru'];
                                     $userUpdateCount = $userCounts['update'];
                                     $userAmount = ($userNewCount * $financeTarifBaru) + ($userUpdateCount * $financeTarifUpdate);
                                 @endphp
-                                <td>{{ $userNewCount }}</td>
-                                <td>{{ $userUpdateCount }}</td>
+                                <td>
+                                    {{ $userNewCount }}
+                                    @if($userCounts['adj_baru'] > 0)
+                                        <div class="small text-muted">termasuk +{{ $userCounts['adj_baru'] }} penyesuaian</div>
+                                    @endif
+                                    @if($userCounts['excluded'] > 0)
+                                        <div class="small text-danger">{{ $userCounts['excluded'] }} dibatalkan/duplikat &mdash; tidak ditagih</div>
+                                    @endif
+                                    @if($userCounts['unsent'] > 0)
+                                        <div class="small text-secondary">{{ $userCounts['unsent'] }} belum dikirim</div>
+                                    @endif
+                                </td>
+                                <td>
+                                    {{ $userUpdateCount }}
+                                    @if($userCounts['adj_update'] > 0)
+                                        <div class="small text-muted">termasuk +{{ $userCounts['adj_update'] }} penyesuaian</div>
+                                    @endif
+                                </td>
                                 <td class="text-end fw-semibold text-success">Rp {{ number_format($userAmount, 0, ',', '.') }}</td>
+                                <td>
+                                    <form method="POST" action="{{ route('nias.finance-adjustment') }}"
+                                          class="d-flex align-items-center gap-1">
+                                        @csrf
+                                        <input type="hidden" name="user_id" value="{{ $u->id }}">
+                                        @foreach(request()->only(['finance_club', 'finance_role', 'finance_sort', 'finance_dir']) as $fKey => $fVal)
+                                            <input type="hidden" name="{{ $fKey }}" value="{{ $fVal }}">
+                                        @endforeach
+                                        <input type="number" name="baru" min="0" step="1"
+                                               class="form-control form-control-sm text-center"
+                                               style="width:62px" title="Penyesuaian NIAS Baru"
+                                               value="{{ $userCounts['adj_baru'] }}">
+                                        <input type="number" name="update" min="0" step="1"
+                                               class="form-control form-control-sm text-center"
+                                               style="width:62px" title="Penyesuaian NIAS Update"
+                                               value="{{ $userCounts['adj_update'] }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-1"
+                                                title="Simpan penyesuaian">
+                                            <i class="bi bi-save"></i>
+                                        </button>
+                                    </form>
+                                </td>
                                 <td>
                                     <a href="{{ route('nias.serve-bukti', $u->id) }}" target="_blank"
                                        class="btn btn-sm btn-outline-primary">
@@ -970,7 +1010,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">
+                                <td colspan="11" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
                                     Belum ada bukti transfer yang diupload oleh user.
                                 </td>
@@ -1530,6 +1570,11 @@
         $(function () {
             const niasOpen = @json($isNiasOpen);
             const isAdmin = @json(auth()->user()->role === 'admin');
+
+            // ── Kembali ke tab Catatan Keuangan setelah menyimpan penyesuaian ──
+            if (new URLSearchParams(window.location.search).get('tab') === 'keuangan') {
+                switchTab('tab-keuangan');
+            }
             document.querySelectorAll('#tab-baru, #tab-update').forEach(function (tabBtn) {
                 tabBtn.addEventListener('show.bs.tab', function (e) {
                     if (niasOpen || isAdmin) return;
