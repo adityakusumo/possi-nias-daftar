@@ -55,4 +55,30 @@ class AppSetting extends Model
         $map[$namaclub] = $max;
         static::set('nias_max_accounts_per_club', json_encode($map));
     }
+
+    // ── Penyesuaian manual jumlah NIAS (halaman Catatan Keuangan) ─
+    // Format JSON: {"<user_id>": {"baru": n, "update": n}}
+    // Dipakai bila baris NIAS_STRUCT sudah tidak ada lagi (mis. sudah
+    // diproses/dihapus), supaya hitungan jumlah & nominal pada halaman
+    // Catatan Keuangan dan Export ZIP tetap benar.
+    public static function getFinanceAdjustment(int $userId): array
+    {
+        $json = static::get('nias_finance_adjustment', '{}');
+        $map  = json_decode($json, true) ?: [];
+        $row  = $map[(string) $userId] ?? [];
+
+        return [
+            'baru'   => (int) ($row['baru']   ?? 0),
+            'update' => (int) ($row['update'] ?? 0),
+        ];
+    }
+
+    // ── Simpan penyesuaian manual jumlah NIAS untuk satu user ─────
+    public static function setFinanceAdjustment(int $userId, int $baru, int $update = 0): void
+    {
+        $json = static::get('nias_finance_adjustment', '{}');
+        $map  = json_decode($json, true) ?: [];
+        $map[(string) $userId] = ['baru' => $baru, 'update' => $update];
+        static::set('nias_finance_adjustment', json_encode($map));
+    }
 }

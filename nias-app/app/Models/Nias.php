@@ -72,6 +72,25 @@ class Nias extends Model
     }
 
     /**
+     * Jumlah NIAS baru & update yang dipakai halaman Catatan Keuangan
+     * (dan Export ZIP bukti transfer).
+     *
+     * Hitungan asli berasal dari baris NIAS_STRUCT milik user, DITAMBAH
+     * penyesuaian manual pada AppSetting 'nias_finance_adjustment'.
+     * Penyesuaian dipakai bila baris NIAS_STRUCT sudah tidak ada lagi
+     * (mis. sudah diproses), supaya jumlah & nominal tetap benar.
+     */
+    public static function financeCounts(int $userId): array
+    {
+        $adj = AppSetting::getFinanceAdjustment($userId);
+
+        return [
+            'baru'   => static::where('user_id', $userId)->where('is_update', false)->count() + $adj['baru'],
+            'update' => static::where('user_id', $userId)->where('is_update', true)->count() + $adj['update'],
+        ];
+    }
+
+    /**
      * Club lookup — from LOOKUP_CLUB_KOTAKAB in NiasUpdate_MDB.py
      * 'CLUB NAME' => [KDJENIS, JENIS, KDKOTA, NAMAKOTA]
      */

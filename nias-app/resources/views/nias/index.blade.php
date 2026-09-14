@@ -867,8 +867,8 @@
             @php
                 $financeTarifBaru = (int) ($tarifNias['baru'] ?? 60000);
                 $financeTarifUpdate = (int) ($tarifNias['update'] ?? 30000);
-                $financeTotalBaru = $financialRecords->sum(fn($u) => \App\Models\Nias::where('user_id', $u->id)->where('is_update', false)->count());
-                $financeTotalUpdate = $financialRecords->sum(fn($u) => \App\Models\Nias::where('user_id', $u->id)->where('is_update', true)->count());
+                $financeTotalBaru = $financialRecords->sum(fn($u) => \App\Models\Nias::financeCounts($u->id)['baru']);
+                $financeTotalUpdate = $financialRecords->sum(fn($u) => \App\Models\Nias::financeCounts($u->id)['update']);
                 $financeTotalAmount = ($financeTotalBaru * $financeTarifBaru) + ($financeTotalUpdate * $financeTarifUpdate);
             @endphp
             <div class="text-end">
@@ -952,8 +952,10 @@
                                     {{ $u->updated_at ? $u->updated_at->format('d/m/Y H:i') : '-' }}
                                 </td>
                                 @php
-                                    $userNewCount = \App\Models\Nias::where('user_id', $u->id)->where('is_update', false)->count();
-                                    $userUpdateCount = \App\Models\Nias::where('user_id', $u->id)->where('is_update', true)->count();
+                                    // Hitungan NIAS_STRUCT + penyesuaian manual (AppSetting)
+                                    $userCounts = \App\Models\Nias::financeCounts($u->id);
+                                    $userNewCount = $userCounts['baru'];
+                                    $userUpdateCount = $userCounts['update'];
                                     $userAmount = ($userNewCount * $financeTarifBaru) + ($userUpdateCount * $financeTarifUpdate);
                                 @endphp
                                 <td>{{ $userNewCount }}</td>

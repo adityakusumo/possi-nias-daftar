@@ -957,8 +957,10 @@ class NiasController extends Controller
             $safeName = sprintf('%02d_%s_%s', $index + 1, $clubSlug, preg_replace('/[^A-Za-z0-9_]/', '_', ($user->nama ?? 'user')));
             $zip->addFile($storagePath, 'bukti_transfer/' . $safeName . '.' . $ext);
 
-            $newCount = \App\Models\Nias::where('user_id', $user->id)->where('is_update', false)->count();
-            $updateCount = \App\Models\Nias::where('user_id', $user->id)->where('is_update', true)->count();
+            // Hitungan NIAS_STRUCT + penyesuaian manual (AppSetting 'nias_finance_adjustment')
+            $counts = \App\Models\Nias::financeCounts($user->id);
+            $newCount = $counts['baru'];
+            $updateCount = $counts['update'];
             $amount = ($newCount * $tarifBaru) + ($updateCount * $tarifUpdate);
             $totalNew += $newCount;
             $totalUpdate += $updateCount;
