@@ -40,7 +40,9 @@
             </tr>
             <tr>
                 <td>Tanggal Kirim</td>
-                <td>: {{ now()->format('d F Y, H:i') }} WIB</td>
+                {{-- Waktu kirim dalam zona WIB (UTC+7). now() mengikuti config app.timezone (UTC),
+                     jadi harus dikonversi eksplisit agar tidak menampilkan jam UTC. --}}
+                <td>: {{ now()->timezone('Asia/Jakarta')->format('d F Y, H:i') }} WIB</td>
             </tr>
             <tr>
                 <td>Jumlah Data</td>
