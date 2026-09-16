@@ -21,7 +21,8 @@ untouched by default; use --deactivate-missing to mark them STATUS='0'.
 Safety
 ------
 1. A full MariaDB dump of the whole `dbnias` database is ALWAYS created
-   in <app>/database_backup/ BEFORE anything is written.
+   in the git repo's `backup/` dir (see DEFAULT_BACKUP_DIR) BEFORE
+   anything is written. Writing backups inside /var/www is refused.
 2. The script aborts if the backup fails.
 3. All writes run inside a single transaction; on error it rolls back.
 4. `--dry-run` performs the backup + analysis but writes nothing.
@@ -58,7 +59,11 @@ import tempfile
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 APP_DIR      = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 ENV_PATH     = os.path.join(APP_DIR, '.env')
-BACKUP_DIR   = os.path.join(APP_DIR, 'database_backup')
+# Default backup directory: the git repo's backup/ folder.
+# Deliberately ABSOLUTE — this script runs both from the live app
+# (/var/www/...) and from the repo checkout, and backups must never be
+# written inside /var/www (project standing rule).
+DEFAULT_BACKUP_DIR = '/home/itpossijatim/Git/possi-nias-daftar/backup'
 
 # Columns of the NIAS table (MariaDB legacy schema == Access schema),
 # excluding the auto-increment primary key `ID`.
@@ -185,8 +190,8 @@ def main():
     ap.add_argument('--app-dir', default=APP_DIR,
                     help='Laravel app dir containing .env '
                          '(default: parent of this script)')
-    ap.add_argument('--backup-dir', default=None,
-                    help='Backup directory (default: <app>/database_backup)')
+    ap.add_argument('--backup-dir', default=DEFAULT_BACKUP_DIR,
+                    help='Backup directory (default: %(default)s)')
     ap.add_argument('--dry-run', action='store_true',
                     help='Backup + analyze only, write nothing to the DB')
     ap.add_argument('--deactivate-missing', action='store_true',
@@ -219,7 +224,14 @@ def main():
         base_args += ['-p' + db_pass]
     charset = ['--default-character-set=utf8mb4']
 
-    backup_dir = args.backup_dir or os.path.join(args.app_dir, 'database_backup')
+    backup_dir = os.path.abspath(args.backup_dir)
+
+    # Safety net: never write backups inside the web-served tree.
+    if backup_dir == '/var/www' or backup_dir.startswith('/var/www/'):
+        die(f"refusing to write backups inside /var/www: {backup_dir}\n"
+            f"        Backups belong in the git repo "
+            f"(default: {DEFAULT_BACKUP_DIR}).")
+
     os.makedirs(backup_dir, exist_ok=True)
     stamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_path = os.path.join(backup_dir, f'{stamp}_dbnias_backup.sql')
