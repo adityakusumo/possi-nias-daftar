@@ -102,7 +102,9 @@ bash /home/itpossijatim/possi-nias-daftar/.codewhale/deploy_new_workflow.sh
   git reset --hard origin/main
   ```
 
-- `NIAS.sql` disimpan di disk `~/Git/nias-app/database_backup/NIAS.sql` **tanpa di-track git** (karena `*.sql` di-gitignore) — file ini dipakai workflow **"update nias table"** (target 3344 baris). Jangan dihapus.
+- `NIAS.sql` — dump tabel NIAS untuk workflow **"update nias table"** (target 3344 baris). **Jangan dihapus.** Sejak 2026-09-17 file ini berada di `~/Git/possi-nias-daftar/backup/NIAS.sql`, setelah `nias-app/database_backup/` (repo) dan `/var/www/possi-nias-daftar/nias-app/database_backup/` dihapus. Backup script sekarang default ke `~/Git/possi-nias-daftar/backup/` (`sync_nias_mdb.py --backup-dir`).
+
+- ⚠️ **Koreksi catatan lama:** baris ini dulu menyebut `NIAS.sql` "**tanpa di-track git** (karena `*.sql` di-gitignore)". Itu **tidak benar saat ini** — `.gitignore` tidak memuat aturan `*.sql`, sehingga file `*.sql` (termasuk `NIAS.sql` dan dump `backup/*.sql`) **ter-track** di repo. Repo GitHub ini **publik**, jadi **jangan `git push`** dump yang memuat PII; bersihkan atau keluarkan dulu dari tracking bila perlu (lihat `git filter-repo` / catatan commit `575347a`).
 
 ---
 
