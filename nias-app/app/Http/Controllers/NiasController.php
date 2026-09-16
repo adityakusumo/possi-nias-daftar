@@ -26,9 +26,9 @@ class NiasController extends Controller
     /**
      * Perpanjang diblokir bila masa berlaku masih tersisa LEBIH dari X hari.
      * Sesuai duplicate-check.txt: "prevent unnecessary early extension".
-     * Catatan di dokumen menyarankan buffer 30–60 hari sebelum habis masa berlaku.
+     * Catatan di dokumen menyarankan buffer 30–60 hari; kebijakan saat ini 90 hari.
      */
-    public const PERPANJANG_EARLY_DAYS = 60;
+    public const PERPANJANG_EARLY_DAYS = 90;
 
     // -------------------------------------------------------------------------
     // DUPLICATE CHECK — kandidat duplikat di tabel master NIAS
