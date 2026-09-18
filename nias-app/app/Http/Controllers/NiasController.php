@@ -1397,13 +1397,14 @@ class NiasController extends Controller
         $scope = $isAdmin ? ($request->club ?: 'SemuaClub') : $namaclub;
         $scopeSlug = preg_replace('/[^A-Za-z0-9_]/', '_', $scope);
 
+        // NIK = data sensitif: kolomnya hanya disertakan untuk admin.
+        // Untuk non-admin kolom NIK dihilangkan dari header maupun isinya.
         $header = [
             'NO',
             'NAMA',
             'GENDER [L/P]',
             'TEMPAT LAHIR',
             'TGL LAHIR',
-            'NIK',
             'EMAIL',
             'NO. NIAS JATIM',
             'CLUB',
@@ -1413,19 +1414,21 @@ class NiasController extends Controller
             'TGL KADALUWARSA',
             'STATUS',
         ];
+        if ($isAdmin) {
+            array_splice($header, 5, 0, ['NIK']); // tepat setelah TGL LAHIR
+        }
 
         $rows = [];
         foreach ($records as $i => $r) {
             $expired = $r->EXPIRED ? Carbon::parse($r->EXPIRED) : null;
             $status = !$expired ? '' : ($expired->isPast() ? 'EXPIRED' : 'AKTIF');
 
-            $rows[] = [
+            $row = [
                 $i + 1,
                 $r->NAMA ?? '',
                 $r->GENDER ?? '',
                 $r->TPTLAHIR ?? $r->TEMPATLAHIR ?? '',
                 $r->TGLLAHIR ? Carbon::parse($r->TGLLAHIR)->format('m/d/Y') : '',
-                $r->NIK    ? "'" . $r->NIK    : '',
                 $r->EMAIL ?? '',
                 $r->NONIAS ? "'" . $r->NONIAS : '',
                 $r->NAMACLUB ?? '',
@@ -1435,6 +1438,12 @@ class NiasController extends Controller
                 $expired ? $expired->format('m/d/Y') : '',
                 $status,
             ];
+
+            if ($isAdmin) {
+                array_splice($row, 5, 0, [$this->exportNik($r)]);
+            }
+
+            $rows[] = $row;
         }
 
         if ($format === 'xlsx') {
@@ -1445,9 +1454,13 @@ class NiasController extends Controller
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->fromArray(array_merge([$header], $rows), null, 'A1');
-            $sheet->getStyle('A1:N1')->getFont()->setBold(true);
-            foreach (range('A', 'N') as $col) {
-                $sheet->getColumnDimension($col)->setAutoSize(true);
+            // Jumlah kolom mengikuti isi header (kolom NIK hanya untuk admin).
+            $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($header));
+            $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
+            foreach (range(1, count($header)) as $colIdx) {
+                $sheet->getColumnDimension(
+                    \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx)
+                )->setAutoSize(true);
             }
 
             $writer = new Xlsx($spreadsheet);
@@ -1474,6 +1487,26 @@ class NiasController extends Controller
         return response()->download($tmpCsv, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
         ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Nilai kolom NIK untuk export (khusus admin).
+     *
+     * Model NiasExisting meng-cast NIK sebagai 'encrypted', sedangkan kolom NIK
+     * pada tabel NIAS berasal dari DBNIAS.mdb berupa teks biasa — bukan payload
+     * terenkripsi. Karena itu dekripsi melempar DecryptException dan seluruh
+     * export gagal. Di sini kegagalan tersebut ditangani dengan memakai nilai
+     * asli dari database, sehingga export tetap berjalan dan NIK tidak hilang.
+     */
+    private function exportNik($row): string
+    {
+        try {
+            $nik = $row->NIK;
+        } catch (\Illuminate\Contracts\Encryption\DecryptException $e) {
+            $nik = $row->getRawOriginal('NIK');
+        }
+
+        return $nik ? "'" . $nik : '';
     }
 
     // -------------------------------------------------------------------------
