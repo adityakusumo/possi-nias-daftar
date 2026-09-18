@@ -73,6 +73,7 @@ NIAS_COLUMNS = [
     'STATUS', 'NONIAS', 'LASTMUTASI', 'MUTASI', 'EXPIRED',
     'KDJENISDOM', 'JENISDOM', 'KDKOTADOM', 'NAMAKOTADOM',
     'KDPROPDOM', 'NAMAPROPDOM', 'NIK', 'EMAIL', 'NOKARTUNAS',
+    'berhenti',
 ]
 
 # Columns compared for change detection (all except the key).

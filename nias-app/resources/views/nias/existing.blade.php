@@ -70,6 +70,21 @@ placeholder="Cari nama atau No. NIAS…"
 value="{{ request('search') }}">
 </div>
 </div>
+@if($isAdmin)
+<div class="col-auto d-flex align-items-center">
+<div class="form-check mb-0">
+<input class="form-check-input" type="checkbox" name="show_berhenti" value="1"
+id="showBerhenti" {{ $showBerhenti ? 'checked' : '' }}
+onchange="this.form.submit()">
+<label class="form-check-label" for="showBerhenti">
+Tampilkan atlet berhenti
+@if($jumlahBerhenti > 0)
+<span class="badge bg-secondary ms-1">{{ $jumlahBerhenti }}</span>
+@endif
+</label>
+</div>
+</div>
+@endif
 <div class="col-auto d-flex gap-1">
 <button type="submit" class="btn btn-primary">Cari</button>
 @if(request('search') || request('club'))

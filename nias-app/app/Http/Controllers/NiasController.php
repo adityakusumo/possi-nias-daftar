@@ -1263,6 +1263,31 @@ class NiasController extends Controller
             });
         }
 
+        // ── Filter atlet BERHENTI (kolom `berhenti` di tabel NIAS) ─────
+        // Atlet dengan berhenti != 0 disembunyikan. Nilai NULL / kosong
+        // dianggap masih aktif sehingga tetap tampil.
+        // Admin dapat menampilkannya kembali lewat checkbox
+        // "Tampilkan atlet berhenti" (?show_berhenti=1).
+        $showBerhenti = $isAdmin && $request->boolean('show_berhenti');
+
+        // Jumlah atlet berhenti pada filter yang sedang aktif (badge admin).
+        $jumlahBerhenti = 0;
+        if ($isAdmin) {
+            $jumlahBerhenti = (clone $query)
+                ->whereNotNull('berhenti')
+                ->where('berhenti', '!=', '')
+                ->where('berhenti', '!=', '0')
+                ->count();
+        }
+
+        if (! $showBerhenti) {
+            $query->where(function ($q) {
+                $q->whereNull('berhenti')
+                    ->orWhere('berhenti', '')
+                    ->orWhere('berhenti', '0');
+            });
+        }
+
         $records = $query->paginate(20)->withQueryString();
 
         return view('nias.existing', compact(
@@ -1272,7 +1297,9 @@ class NiasController extends Controller
             'sortDir',
             'isAdmin',
             'allClubs',
-            'filterClub'
+            'filterClub',
+            'showBerhenti',
+            'jumlahBerhenti'
         ));
     }
 
