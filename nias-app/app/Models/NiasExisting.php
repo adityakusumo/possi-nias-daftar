@@ -25,6 +25,25 @@ class NiasExisting extends Model
         });
     }
 
+    /**
+     * Scope: hanya atlet yang BELUM berhenti.
+     *
+     * Kolom `berhenti` berasal dari DBNIAS.mdb: 0 = aktif, selain 0 = berhenti.
+     * NULL / kosong diperlakukan sebagai aktif (sync_nias_mdb.py juga menulis
+     * '0' untuk nilai kosong, jadi kolom ini tidak pernah NULL).
+     *
+     * Dipakai bersama oleh halaman /nias/existing dan export-nya supaya
+     * aturan keduanya tidak pernah berbeda.
+     */
+    public function scopeAktif(Builder $query): Builder
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('berhenti')
+                ->orWhere('berhenti', '')
+                ->orWhere('berhenti', '0');
+        });
+    }
+
     protected $casts = [
         'NIK' => 'encrypted',
     ];

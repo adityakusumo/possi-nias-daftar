@@ -1281,11 +1281,7 @@ class NiasController extends Controller
         }
 
         if (! $showBerhenti) {
-            $query->where(function ($q) {
-                $q->whereNull('berhenti')
-                    ->orWhere('berhenti', '')
-                    ->orWhere('berhenti', '0');
-            });
+            $query->aktif();
         }
 
         $records = $query->paginate(20)->withQueryString();
@@ -1344,6 +1340,16 @@ class NiasController extends Controller
                 $q->where('NAMA', 'like', "%{$s}%")
                     ->orWhere('NONIAS', 'like', "%{$s}%");
             });
+        }
+
+        // ── Filter atlet BERHENTI (aturan sama dengan halaman existing) ─────
+        // Default: atlet berhenti (berhenti != 0) TIDAK ikut diexport.
+        // Admin dapat menyertakannya lewat checkbox "Sertakan atlet berhenti"
+        // (?show_berhenti=1).
+        $includeBerhenti = $isAdmin && $request->boolean('show_berhenti');
+
+        if (! $includeBerhenti) {
+            $query->aktif();
         }
 
         // ── Filter khusus export: status kadaluwarsa ────────────────────────

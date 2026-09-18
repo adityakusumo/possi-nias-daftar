@@ -168,6 +168,26 @@ def norm(v):
     return s
 
 
+# Columns that must never be empty in MariaDB: an empty/NULL source value is
+# written as this default instead of NULL. `berhenti` comes from the office
+# (0 = aktif, != 0 = berhenti) and should always carry a value.
+NOT_NULL_DEFAULTS = {
+    'berhenti': '0',
+}
+
+
+def effective_value(col, v):
+    """Final value written to MariaDB for one column.
+
+    Applies NOT_NULL_DEFAULTS so a column that must never be empty gets its
+    default rather than NULL. Used for BOTH the comparison and the writes,
+    so a row already holding '0' is not pointlessly rewritten every sync.
+    """
+    if v is None and col in NOT_NULL_DEFAULTS:
+        return NOT_NULL_DEFAULTS[col]
+    return v
+
+
 def run(cmd, **kw):
     """Run a command, print it (password masked), return CompletedProcess."""
     shown = []
@@ -314,8 +334,10 @@ def main():
             continue
         changed = {}
         for c in COMPARE_COLUMNS:
-            if norm(m.get(c)) != norm(db_rows[nonias].get(c)):
-                changed[c] = norm(m.get(c))
+            new_val = effective_value(c, norm(m.get(c)))
+            old_val = effective_value(c, norm(db_rows[nonias].get(c)))
+            if new_val != old_val:
+                changed[c] = new_val
         if changed:
             to_update.append((nonias, changed))
         else:
@@ -347,7 +369,7 @@ def main():
     sql = ['SET NAMES utf8mb4;', 'START TRANSACTION;']
     for nonias, m in to_insert:
         cols = ', '.join('`%s`' % c for c in NIAS_COLUMNS)
-        vals = ', '.join(mysql_literal(norm(m.get(c))) for c in NIAS_COLUMNS)
+        vals = ', '.join(mysql_literal(effective_value(c, norm(m.get(c)))) for c in NIAS_COLUMNS)
         sql.append(f'INSERT INTO NIAS ({cols}) VALUES ({vals});')
     for nonias, changed in to_update:
         sets = ', '.join('`%s` = %s' % (c, mysql_literal(v))

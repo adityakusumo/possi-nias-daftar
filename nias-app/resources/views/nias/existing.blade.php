@@ -242,7 +242,29 @@ aria-labelledby="exportExistingModalLabel" aria-hidden="true">
 <p class="small text-muted mb-3">
 <i class="bi bi-info-circle me-1"></i>
 Export mengikuti filter club &amp; pencarian di halaman ini.
+@unless($isAdmin)
+Atlet yang sudah berhenti tidak diikutsertakan.
+@endunless
 </p>
+
+@if($isAdmin)
+{{-- Atlet berhenti: default TIDAK ikut (sama seperti halaman) --}}
+<div class="mb-3">
+<div class="form-check">
+<input class="form-check-input" type="checkbox" name="show_berhenti" value="1"
+id="expShowBerhenti" {{ $showBerhenti ? 'checked' : '' }}>
+<label class="form-check-label" for="expShowBerhenti">
+Sertakan atlet berhenti
+@if($jumlahBerhenti > 0)
+<span class="badge bg-secondary ms-1">{{ $jumlahBerhenti }}</span>
+@endif
+</label>
+</div>
+<div class="form-text">
+Tanpa centang ini, atlet dengan kolom <code>berhenti</code> selain 0 tidak diexport.
+</div>
+</div>
+@endif
 
 {{-- Format export --}}
 <div class="mb-3">
